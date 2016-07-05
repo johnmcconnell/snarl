@@ -158,6 +158,16 @@ message({user, api_token, Realm, User, Scope, Comment}, State) when
      snarl_token:api_token(Realm, User, Scope, Comment),
      State};
 
+message({user, manual_token, Realm, User, Scope, Comment, Token}, State) when
+      is_binary(Realm),
+      is_binary(User),
+      is_list(Scope),
+      is_binary(Token),
+      (is_binary(Comment) orelse Comment =:= undefined) ->
+    {reply,
+     snarl_token:manual_token(Realm, User, Scope, Comment, Token),
+     State};
+
 message({user, sign_csr, Realm, User, Scope, Comment, CSR}, State) when
       is_binary(Realm),
       is_binary(User),

@@ -10,6 +10,7 @@
          delete/2,
          reindex/2,
          api_token/4,
+         manual_token/5,
          ssl_cert_token/5
         ]).
 
@@ -65,6 +66,36 @@ api_token(Realm, User, Scope, Comment) ->
                       Realm, User, TokenID, Type, AccessToken, Expiery, Client,
                       Scope, Comment),
                     {ok, {TokenID, AccessToken}};
+                E ->
+                    E
+            end
+    end.
+
+manual_token(Realm, User, Scope, Comment, Token) ->
+    case snarl_oauth_backend:verify_scope(Realm, Scope) of
+        false ->
+            {error, bad_scope};
+        true ->
+            case snarl_user:get(Realm, User) of
+                {ok, _UserObj} ->
+                    %% This os mostly copied from:
+                    %% snarl_oauth:associate_access_token/3
+                    TokenID = fifo_utils:uuid(),
+                    Expiery = infinity,
+                    Client = undefined,
+                    Context = [{<<"client">>, Client},
+                               {<<"resource_owner">>, User},
+                               {<<"expiry_time">>, Expiery},
+                               {<<"scope">>, Scope}],
+                    Type = access,
+                    add(Realm,
+                        {?ACCESS_TOKEN_TABLE, Token},
+                        Expiery,
+                        Context),
+                    snarl_user:add_token(
+                      Realm, User, TokenID, Type, Token, Expiery, Client,
+                      Scope, Comment),
+                    {ok, {TokenID, Token}};
                 E ->
                     E
             end

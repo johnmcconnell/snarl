@@ -1,4 +1,5 @@
 REBAR = $(shell pwd)/rebar3
+APP=snarl
 
 .PHONY: rel stagedevrel package version all tree
 
