@@ -340,7 +340,7 @@ repair_acc(Socket, Sys, Realm, UUID, RBin, R, State) ->
 repair_acc_diff(Socket, Sys, Realm, UUID, RObj, LObj, R, State) ->
     case ordsets:subtract(RObj, LObj) of
         [] -> ok;
-                        LocalMissing ->
+        LocalMissing ->
             NVS = {{remote, node()}, vnode(Sys), Sys},
             snarl_entity_write_fsm:write(
               NVS, {Realm, UUID}, sync_repair, LocalMissing)
