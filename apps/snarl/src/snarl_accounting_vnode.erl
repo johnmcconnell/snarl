@@ -294,10 +294,17 @@ handle_command({hashtree_pid, Node}, _, State) ->
             {reply, {error, wrong_node}, State}
     end;
 
-handle_command({rehash, {Realm, OrgRes}}, _,
-               State=#state{hashtrees=HT}) when is_binary(Realm),
-                                                is_binary(OrgRes) ->
+handle_command({rehash, {Realm, OrgRes}}, Sender, State)
+  when is_binary(Realm),
+       is_binary(OrgRes) ->
     {OrgID, Resource} = binary_to_term(OrgRes),
+    handle_command({rehash, {Realm, {OrgID, Resource}}}, Sender, State);
+
+handle_command({rehash, {Realm, {OrgID, Resource}}}, _,
+               State=#state{hashtrees=HT}) when is_binary(Realm),
+                                                is_binary(OrgID),
+                                                is_binary(Resource) ->
+    OrgRes = term_to_binary({OrgID, Resource}),
     case for_resource(Realm, OrgID, Resource, State) of
         {[], State1} ->
             %% Make sure hashtree isn't tracking deleted data
