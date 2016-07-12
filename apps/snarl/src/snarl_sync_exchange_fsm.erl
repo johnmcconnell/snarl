@@ -137,7 +137,7 @@ sync_diff(
   _, State = #state{
                 socket=Socket,
                 timeout=Timeout,
-                diff=[{Sys = snarl_accountingounting, {Realm, UUID}}|R]}) ->
+                diff=[{Sys = snarl_accounting, {Realm, UUID}}|R]}) ->
     lager:debug("[sync-exchange] Diff: ~p", [{Sys, {Realm, UUID}}]),
     case gen_tcp:send(Socket, term_to_binary({raw, Sys, Realm, UUID})) of
         ok ->
@@ -410,7 +410,7 @@ vnode(snarl_2i) -> snarl_2i_vnode;
 vnode(snarl_role) -> snarl_role_vnode;
 vnode(snarl_user) -> snarl_user_vnode;
 vnode(snarl_client) -> snarl_client_vnode;
-vnode(snarl_accountingounting) -> snarl_accountingounting_vnode;
+vnode(snarl_accounting) -> snarl_accounting_vnode;
 vnode(snarl_org) -> snarl_org_vnode.
 
 write(Sys, Realm, UUID, Op, Val) ->
