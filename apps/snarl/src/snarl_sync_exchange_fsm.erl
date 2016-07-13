@@ -391,6 +391,7 @@ repair_accounting_diff(Socket, Sys, Realm, UUID, RObj, LObj, R, State) ->
             remote_accounting_repair(Socket, Sys, Realm, UUID,
                           RemoteMissing, R, State)
     end.
+
 remote_accounting_repair(Socket, Sys, Realm, UUID, Delta, R, State) ->
     Msg = write(Sys, Realm, UUID, sync_repair, Delta),
     case gen_tcp:send(Socket, Msg) of
