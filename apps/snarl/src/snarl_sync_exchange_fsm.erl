@@ -354,6 +354,7 @@ repair_acc_diff(Socket, Sys, Realm, UUID, RObj, LObj, R, State) ->
             remote_repair(Socket, Sys, Realm, UUID,
                           RemoteMissing, R, State)
     end.
+
 remote_repair(Socket, Sys, Realm, UUID, Delta, R, State) ->
     Msg = write(Sys, Realm, UUID, sync_repair, Delta),
     case gen_tcp:send(Socket, Msg) of
