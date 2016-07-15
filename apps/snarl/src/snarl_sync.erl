@@ -17,7 +17,8 @@
 -endif.
 
 %% API
--export([start/2, start_link/2, sync_op/7, hash/2, split_trees/2, sync/0]).
+-export([start/2, start_link/2, sync_op/7, hash/2, split_trees/2, sync/0,
+         remote_sync_started/0]).
 
 -ignore_xref([start_link/2]).
 
@@ -53,8 +54,11 @@ sync_op(Node, VNode, System, Bucket, User, Op, Val) ->
     gen_server:abcast(?SERVER,
                       {write, Node, VNode, System, Bucket, User, Op, Val}).
 
+remote_sync_started() ->
+    gen_server:abcast(?SERVER, remote_sync).
+
 sync() ->
-    whereis(?SERVER) ! sync.
+    gen_server:abcast(?SERVER, sync).
 
 reconnect() ->
     reconnect(self()).
@@ -132,6 +136,13 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+handle_cast(sync, State) ->
+    self() ! sync,
+    {noreply, State};
+handle_cast(remote_sync, State) ->
+    cancle_timer(State),
+    lager:warning("[sync] Remote sync started, skipping this sync tick"),
+    {noreply, next_tick(State)};
 handle_cast({write, _Node, _VNode, _System, _Bucket, _User, _Op, _Val} = Act,
             State = #state{socket=undefined}) ->
     lager:debug("[sync] ~p", [Act]),

@@ -27,6 +27,7 @@ loop(State = #state{transport = Transport, socket = Socket,
                 ping ->
                     Transport:send(Socket, term_to_binary(pong));
                 get_tree ->
+                    snarl_sync:remote_sync_started(),
                     {ok, Tree} = snarl_sync_tree:get_tree(),
                     Transport:send(Socket, term_to_binary({ok, Tree}));
                 {raw, System, Realm, UUID} ->
