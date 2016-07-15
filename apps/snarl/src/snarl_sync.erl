@@ -31,7 +31,8 @@
 
 -define(SYNC_IVAL, 1000*60*15).
 
--record(state, {ip, port, socket, timeout, interval, timer}).
+-record(state, {ip, port, socket, timeout, interval, timer,
+                reconnect_timer}).
 
 %%%===================================================================
 %%% API
@@ -60,12 +61,6 @@ remote_sync_started() ->
 sync() ->
     gen_server:abcast(?SERVER, sync).
 
-reconnect() ->
-    reconnect(self()).
-
-reconnect(Pid) ->
-    gen_server:cast(Pid, reconnect).
-
 %%%===================================================================
 %%% gen_server callbacks
 %%%===================================================================
@@ -82,21 +77,9 @@ reconnect(Pid) ->
 %% @end
 %%--------------------------------------------------------------------
 init([IP, Port]) ->
-    Timeout = case application:get_env(sync_recv_timeout) of
-                  {ok, T} ->
-                      T;
-                  _ ->
-                      1500
-              end,
-    IVal = case application:get_env(sync_interval) of
-               {ok, IValX} ->
-                   IValX;
-               _ ->
-                   ?SYNC_IVAL
-           end,
+    Timeout = application:get_env(snarl, sync_recv_timeout, 1500),
+    IVal = application:get_env(snarl, sync_interval, ?SYNC_IVAL),
     State = #state{ip=IP, port=Port, timeout=Timeout, interval = IVal},
-    %% Every oen hour we want to regenerate.
-    timer:send_interval(IVal, sync),
     timer:send_interval(1000, ping),
     case gen_tcp:connect(IP, Port, [{send_timeout, State#state.timeout} |
                                     ?CON_OPTS], Timeout) of
@@ -105,8 +88,7 @@ init([IP, Port]) ->
             {ok, next_tick(State#state{socket=Socket}), 0};
         E ->
             lager:error("[sync] Initialization failed: ~p.", [E]),
-            reconnect(self()),
-            {ok, next_tick(State), 0}
+            {ok, reconnect(next_tick(State)), 0}
     end.
 
 %%--------------------------------------------------------------------
@@ -159,27 +141,11 @@ handle_cast({write, Node, VNode, System, Bucket, ID, Op, Val},
                      State;
                  E ->
                      lager:error("[sync] Error: ~p", [E]),
-                     reconnect(),
                      dyntrace:p(?DT_SYNC, ?DT_RETURN, ?DT_FAIL, SystemS, ID,
                                 OpS),
-                     State#state{socket=undefined}
+                     reconnect(State#state{socket=undefined})
              end,
     {noreply, State0};
-
-handle_cast(reconnect, State = #state{socket = Old, ip=IP, port=Port,
-                                      timeout=Timeout}) ->
-    maybe_close(Old),
-    case gen_tcp:connect(IP, Port, [{send_timeout, State#state.timeout} |
-                                    ?CON_OPTS], Timeout) of
-        {ok, Socket} ->
-            {noreply, State#state{socket=Socket}};
-        E ->
-            lager:error("[sync(~p:~p)] Initialization failed: ~p.",
-                        [IP, Port, E]),
-            timer:sleep(500),
-            reconnect(),
-            {noreply, State#state{socket=undefined}}
-    end;
 
 handle_cast(_Msg, State) ->
     {noreply, State}.
@@ -205,21 +171,19 @@ handle_info(ping, State = #state{socket = Socket, timeout = Timeout}) ->
                      case gen_tcp:recv(Socket, 0, Timeout) of
                          {error, E} ->
                              lager:error("[sync] Error: ~p", [E]),
-                             reconnect(),
-                             State#state{socket=undefined};
+                             reconnect(State#state{socket=undefined});
                          {ok, _Pong} ->
                              State
                      end;
                  E ->
                      lager:error("[sync] Error: ~p", [E]),
-                     reconnect(),
-                     State#state{socket=undefined}
+                     reconnect(State#state{socket=undefined})
              end,
     {noreply, State0};
 
 handle_info(sync, State = #state{socket = undefined}) ->
     cancle_timer(State),
-    lager:warning("[sync] Can't syncing not connected"),
+    lager:warning("[sync] Can't syncing not connected."),
     {noreply, next_tick(State)};
 
 handle_info(sync, State = #state{socket = Socket, timeout = Timeout}) ->
@@ -229,8 +193,7 @@ handle_info(sync, State = #state{socket = Socket, timeout = Timeout}) ->
                      case gen_tcp:recv(Socket, 0, Timeout) of
                          {error, E} ->
                              lager:error("[sync] Error: ~p", [E]),
-                             reconnect(),
-                             State#state{socket=undefined};
+                             reconnect(State#state{socket=undefined});
                          {ok, Bin} ->
                              {ok, LTree} = snarl_sync_tree:get_tree(),
                              {ok, RTree} = binary_to_term(Bin),
@@ -238,11 +201,24 @@ handle_info(sync, State = #state{socket = Socket, timeout = Timeout}) ->
                      end;
                  E ->
                      lager:error("[sync] Error: ~p", [E]),
-                     reconnect(),
-                     State#state{socket=undefined}
+                     reconnect(State#state{socket=undefined})
              end,
-
     {noreply, next_tick(State0)};
+
+handle_info(reconnect, State = #state{socket = Old, ip=IP, port=Port,
+                                      timeout = Timeout}) ->
+    maybe_close(Old),
+    State1 = State#state{reconnect_timer = undefiend},
+    case gen_tcp:connect(IP, Port, [{send_timeout, State#state.timeout} |
+                                    ?CON_OPTS], Timeout) of
+        {ok, Socket} ->
+            {noreply, State1#state{socket = Socket}};
+        E ->
+            lager:error("[sync(~p:~p)] Initialization failed: ~p.",
+                        [IP, Port, E]),
+            {noreply, reconnect(State1#state{socket = undefined})}
+    end;
+
 
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -320,7 +296,6 @@ split_trees(L, [] , Diff, Get, Push) ->
 split_trees([], R , Diff, Get, Push) ->
     {Diff, Get ++ [K || {K, _} <- R], Push}.
 
-
 next_tick(State = #state{interval = IVal}) ->
     Wait = random:uniform(IVal) + IVal,
     T1 = erlang:send_after(Wait, self(), sync),
@@ -330,3 +305,11 @@ cancle_timer(#state{timer = undefiend}) ->
     ok;
 cancle_timer(#state{timer = T}) ->
     erlang:cancel_timer(T).
+
+reconnect(State = #state{reconnect_timer = undefiend}) ->
+    Wait = random:uniform(2000) + 500,
+    lager:warning("[sync] Reconnecting in ~pms", [Wait]),
+    T1 = erlang:send_after(Wait, self(), reconnect),
+    State#state{reconnect_timer = T1};
+reconnect(State) ->
+    State.
