@@ -74,6 +74,10 @@ master() ->
 hash_object(Key, Obj) ->
     integer_to_binary(erlang:phash2({Key, Obj})).
 
+aae_repair(Realm, OrgIDResource) when is_binary(OrgIDResource) ->
+    {OrgID, Resource} = binary_to_term(OrgIDResource),
+    aae_repair(Realm, {OrgID, Resource});
+
 aae_repair(Realm, {OrgID, Resource}) ->
     lager:debug("AAE Repair: ~p/~p", [OrgID, Resource]),
     snarl_accounting:get(Realm, OrgID, Resource).
@@ -195,7 +199,7 @@ insert(Action, Realm, OrgID, Resource, Timestamp, Metadata, State) ->
     State1 = insert1(Action, Realm, OrgID, Resource, Timestamp, Metadata,
                      State),
     {Res, State2} = for_resource(Realm, OrgID, Resource, State1),
-    Hash = hash_object({Realm, OrgID, Resource}, Res),
+    Hash = hash_object({Realm, {OrgID, Resource}}, Res),
     snarl_sync_tree:update(State#state.sync_tree, snarl_accounting,
                            {Realm, {OrgID, Resource}}, Res),
     riak_core_aae_vnode:update_hashtree(
@@ -312,7 +316,7 @@ handle_command({rehash, {Realm, {OrgID, Resource}}}, _,
               [{object, {Realm, OrgRes}}], HT),
             {noreply, State1};
         {Res, State1} ->
-            Hash = hash_object({Realm, OrgID, Resource}, Res),
+            Hash = hash_object({Realm, {OrgID, Resource}}, Res),
             riak_core_aae_vnode:update_hashtree(
               Realm, OrgRes, Hash, HT),
             {noreply, State1}

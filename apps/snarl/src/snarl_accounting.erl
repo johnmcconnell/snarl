@@ -63,7 +63,7 @@ list() ->
                  not_found |
                  {error, timeout} |
                  {ok, Org::fifo:org()}.
-get(Realm, Org) ->
+get(Realm, Org) when is_binary(Org) ->
     case ?FM(get, snarl_accounting_read_fsm, start,
              [{snarl_accounting_vnode, snarl_accounting}, get, {Realm, Org}]) of
         {ok, not_found} ->

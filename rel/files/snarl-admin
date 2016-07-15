@@ -899,7 +899,7 @@ case "$1" in
         echo "               scope grant <realm> <scope> <permission>   - grants a permission to a scope."
         echo "               scope revoke <realm> <scope> <permission>  - revokes a permission to a scope."
         echo "               scope toggle <realm> <scope>               - toggles weather this is part of the default scope."
-        echo "               intit <realm> <org> <role> <user> <pass>   - initializes a realm with a fresh org and user and role."
+        echo "               init <realm> <org> <role> <user> <pass>    - initializes a realm with a fresh org and user and role."
         exit 1
         ;;
 esac

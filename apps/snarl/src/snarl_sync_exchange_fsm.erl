@@ -137,7 +137,7 @@ sync_diff(
   _, State = #state{
                 socket=Socket,
                 timeout=Timeout,
-                diff=[{Sys = snarl_accountingounting, {Realm, UUID}}|R]}) ->
+                diff=[{Sys = snarl_accounting, {Realm, UUID}}|R]}) ->
     lager:debug("[sync-exchange] Diff: ~p", [{Sys, {Realm, UUID}}]),
     case gen_tcp:send(Socket, term_to_binary({raw, Sys, Realm, UUID})) of
         ok ->
@@ -145,7 +145,8 @@ sync_diff(
                 {error, E} ->
                     error_stop(recv, E, State);
                 {ok, RBin} ->
-                    repair_accounting(Socket, Sys, Realm, UUID, RBin, R, State)
+                    repair_accounting(Realm, UUID, RBin),
+                    {next_state, sync_get, State#state{diff=R}, 0}
             end;
         E ->
             error_stop(send_raw, E, State)
@@ -156,7 +157,7 @@ sync_diff(_, State = #state{
                         socket=Socket,
                         timeout=Timeout,
                         diff=[{Sys, {Realm, UUID}}|R]}) ->
-    lager:debug("[sync-exchange] Diff: ~p", [{Sys, {Realm, UUID}}]),
+    lager:debug("[sync-exchange:acc] Diff: ~p", [{Sys, {Realm, UUID}}]),
     case gen_tcp:send(Socket, term_to_binary({raw, Sys, Realm, UUID})) of
         ok ->
             case gen_tcp:recv(Socket, 0, Timeout) of
@@ -181,6 +182,24 @@ sync_diff(_, State = #state{diff=[]}) ->
 %%
 %% @end
 %%--------------------------------------------------------------------
+
+sync_get(_, State = #state{
+                       socket=Socket,
+                       timeout=Timeout,
+                       get=[{Sys = snarl_accounting, {Realm, UUID}}|R]}) ->
+    lager:debug("[sync-exchange:acc] Get: ~p", [{Sys, {Realm, UUID}}]),
+    case gen_tcp:send(Socket, term_to_binary({raw, Sys, Realm, UUID})) of
+        ok ->
+            case gen_tcp:recv(Socket, 0, Timeout) of
+                {error, E} ->
+                    error_stop(recv, E, State);
+                {ok, RBin} ->
+                    repair_accounting(Realm, UUID, RBin),
+                    {next_state, sync_get, State#state{get=R}, 0}
+            end;
+        E ->
+            error_stop(send_raw, E, State)
+    end;
 
 sync_get(_, State = #state{
                        socket=Socket,
@@ -354,53 +373,32 @@ error_stop(Reason, Error, State) ->
 %%% Accounting related functions
 %%%===================================================================
 
-repair_accounting(Socket, Sys, Realm, UUID, RBin, R, State) ->
-    case binary_to_term(RBin) of
-        {ok, RObj} ->
-            case snarl_sync_element:raw(Sys, Realm, UUID) of
-                {ok, LObj} ->
-                    %% If we have local missing we update
-                    %% our local code first.
-                    repair_accounting_diff(Socket, Sys, Realm, UUID, RObj,
-                                           LObj, R, State);
-                _ ->
-                    {next_state, sync_diff, State#state{diff=R}, 0}
-            end;
-        not_found ->
-            {next_state, sync_diff, State#state{diff=R}, 0};
-        E ->
-            error_stop(send_raw, E, State)
+repair_accounting(Realm, UUID, RBin) ->
+    {ok, RObj}  = binary_to_term(RBin),
+    case snarl_accounting:raw(Realm, UUID) of
+        {ok, LObj} ->
+            %% If we have local missing we update
+            %% our local code first.
+            repair_accounting_diff(Realm, UUID, RObj, LObj);
+        _ ->
+            ok
     end.
 
-repair_accounting_diff(Socket, Sys, Realm, UUID, RObj, LObj, R, State) ->
-    case ordsets:subtract(RObj, LObj) of
-        [] -> ok;
-        LocalMissing ->
-            %% Since accounting data is handled differently we need to
-            %% differentiate between local and remote repairs.
-            NVS = {{remote, node()}, vnode(Sys), Sys},
-            snarl_entity_write_fsm:write(
-              NVS, {Realm, UUID}, sync_repair, LocalMissing)
-    end,
-    %% Then we see if we miss something on the
-    %% remote side.
-    case ordsets:subtract(LObj, RObj) of
-        [] ->
-            {next_state, sync_diff, State#state{diff=R}, 0};
-        RemoteMissing ->
-            remote_accounting_repair(Socket, Sys, Realm, UUID,
-                          RemoteMissing, R, State)
-    end.
-remote_accounting_repair(Socket, Sys, Realm, UUID, Delta, R, State) ->
-    Msg = write(Sys, Realm, UUID, sync_repair, Delta),
-    case gen_tcp:send(Socket, Msg) of
-        ok ->
-            {next_state, sync_diff, State#state{diff=R}, 0};
-        E ->
-            lager:error("[sync-exchange] Error: ~p", [E]),
-            lager:error("[sync-exchange] skipping: ~p", [{Sys, {Realm, UUID}}]),
-            {stop, recv_raw, State}
-    end.
+repair_accounting_diff(Realm, UUID, RObj, LObj) ->
+    Diff =  ordsets:subtract(RObj, LObj)  ++ ordsets:subtract(LObj, RObj),
+    snarl_accounting:sync_repair(Realm, UUID, Diff).
+
+%% remote_accounting_repair(Socket, Sys, Realm, UUID, Delta, R, State) ->
+%%     Msg = write(Sys, Realm, UUID, sync_repair, Delta),
+%%     case gen_tcp:send(Socket, Msg) of
+%%         ok ->
+%%             {next_state, sync_diff, State#state{diff=R}, 0};
+%%         E ->
+%%             lager:error("[sync-exchange] Error: ~p", [E]),
+%%             lager:error("[sync-exchange] skipping: ~p",
+%%                         [{Sys, {Realm, UUID}}]),
+%%             {stop, recv_raw, State}
+%%     end.
 
 %%%===================================================================
 %%% Internal functions
@@ -410,8 +408,8 @@ vnode(snarl_2i) -> snarl_2i_vnode;
 vnode(snarl_role) -> snarl_role_vnode;
 vnode(snarl_user) -> snarl_user_vnode;
 vnode(snarl_client) -> snarl_client_vnode;
-vnode(snarl_accountingounting) -> snarl_accountingounting_vnode;
+vnode(snarl_accounting) -> snarl_accounting_vnode;
 vnode(snarl_org) -> snarl_org_vnode.
 
-write(Sys, Realm, UUID, Op, Val) ->
-    term_to_binary({write, node(), vnode(Sys), Sys, Realm, UUID, Op, Val}).
+%% write(Sys, Realm, UUID, Op, Val) ->
+%%     term_to_binary({write, node(), vnode(Sys), Sys, Realm, UUID, Op, Val}).

@@ -12,7 +12,7 @@
 
 %% API
 -export([start_link/0, insert/5, done/3, delete/3, get_tree/0, update/4,
-         get_tree/1]).
+         get_tree/1, get_tree_data/1]).
 
 -ignore_xref([start_link/0]).
 
@@ -44,6 +44,9 @@ start_link() ->
 
 get_tree() ->
     gen_server:call(?SERVER, get).
+
+get_tree_data(Service) ->
+    gen_server:call(?SERVER, {get, Service}).
 
 delete(PID, System, ID) ->
     gen_server:cast(PID, {delete, System, ID}).
@@ -79,7 +82,7 @@ init([]) ->
                _ ->
                    ?RECHECK_IVAL
            end,
-    timer:send_interval(IVal, timeout),
+    timer:send_interval(IVal, update_tree),
     {ok, #state{}, 0}.
 
 %%--------------------------------------------------------------------
@@ -98,6 +101,9 @@ init([]) ->
 %%--------------------------------------------------------------------
 handle_call(get, _From, State = #state{tree = Tree}) ->
     Tree1 = [{{S, Id}, H} || {{S, Id}, {_, H}} <- Tree],
+    {reply, {ok, Tree1}, State};
+handle_call({get, Service}, _From, State = #state{tree = Tree}) ->
+    Tree1 = [{{S, Id}, H} || {{S, Id}, {_, H}} <- Tree, S =:= Service],
     {reply, {ok, Tree1}, State};
 handle_call(_Request, _From, State) ->
     Reply = ok,
@@ -136,7 +142,7 @@ handle_cast(_Msg, State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_info(timeout, State = #state{version = Vsn}) ->
+handle_info(update_tree, State = #state{version = Vsn}) ->
     Vsn1 = Vsn + 1,
     case snarl_user:list() of
         {ok, Us} ->

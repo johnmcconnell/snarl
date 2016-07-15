@@ -3,7 +3,7 @@
 | By default the service is disabled since it's common that you will need to   |
 | do some additional configurations.                                           |
 |                                                                              |
-| Please have a look at the configuraiton files:                               |
+| Please have a look at the configuration files:                               |
 |                                                                              |
 |  * /opt/local/fifo-snarl/etc/snarl.conf                                      |
 |                                                                              |
