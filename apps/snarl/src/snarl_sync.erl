@@ -162,7 +162,6 @@ handle_cast(_Msg, State) ->
 %%--------------------------------------------------------------------
 
 handle_info(ping, State = #state{socket = undefined}) ->
-    lager:warning("[sync] Can't syncing not connected"),
     {noreply, State};
 
 handle_info(ping, State = #state{socket = Socket, timeout = Timeout}) ->
