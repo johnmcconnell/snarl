@@ -20,7 +20,7 @@
 │     └─ quickrand─1.5.2-rc1
 ├─ folsom_ddb─0.1.25
 │  ├─ ddb_client─0.1.22
-│  │  ├─ dproto─0.1.18
+│  │  ├─ dproto─0.1.19
 │  │  └─ mmath─0.2.0-alpha8
 │  ├─ dqe_idx─0.1.18
 │  ├─ dqe_idx_ddb─0.1.13
@@ -39,14 +39,14 @@
 ├─ oauth2─0.6.1
 ├─ rankmatcher─0.1.5
 ├─ recon─2.3.1
-├─ riak_core─2.2.5+p1
+├─ riak_core─2.2.6
 │  ├─ basho_stats─1.0.3
 │  ├─ blume─0.1.0
 │  ├─ chash─0.1.1
 │  ├─ clique─3.0.1
 │  ├─ cuttlefish─2.0.7
 │  │  └─ getopt─0.8.2
-│  ├─ exometer_core─1.0.0
+│  ├─ exometer_core─1.0.1
 │  │  ├─ parse_trans─2.9.0
 │  │  └─ setup─1.7.0
 │  ├─ goldrush─0.1.7
