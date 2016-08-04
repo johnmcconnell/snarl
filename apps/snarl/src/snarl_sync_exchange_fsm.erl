@@ -388,18 +388,6 @@ repair_accounting_diff(Realm, UUID, RObj, LObj) ->
     Diff =  ordsets:subtract(RObj, LObj)  ++ ordsets:subtract(LObj, RObj),
     snarl_accounting:sync_repair(Realm, UUID, Diff).
 
-%% remote_accounting_repair(Socket, Sys, Realm, UUID, Delta, R, State) ->
-%%     Msg = write(Sys, Realm, UUID, sync_repair, Delta),
-%%     case gen_tcp:send(Socket, Msg) of
-%%         ok ->
-%%             {next_state, sync_diff, State#state{diff=R}, 0};
-%%         E ->
-%%             lager:error("[sync-exchange] Error: ~p", [E]),
-%%             lager:error("[sync-exchange] skipping: ~p",
-%%                         [{Sys, {Realm, UUID}}]),
-%%             {stop, recv_raw, State}
-%%     end.
-
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
@@ -410,6 +398,3 @@ vnode(snarl_user) -> snarl_user_vnode;
 vnode(snarl_client) -> snarl_client_vnode;
 vnode(snarl_accounting) -> snarl_accounting_vnode;
 vnode(snarl_org) -> snarl_org_vnode.
-
-%% write(Sys, Realm, UUID, Op, Val) ->
-%%     term_to_binary({write, node(), vnode(Sys), Sys, Realm, UUID, Op, Val}).
