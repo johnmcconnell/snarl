@@ -6,7 +6,7 @@
 %%% @end
 %%% Created : 30 Dec 2013 by Heinz Nikolaus Gies <heinz@licenser.net>
 %%%-------------------------------------------------------------------
--module(snarl_sync_sup).
+-module(snarl_sync_worker_sup).
 
 -behaviour(supervisor).
 

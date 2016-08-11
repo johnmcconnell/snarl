@@ -1,0 +1,20 @@
+{application, snarl_sync,
+ [{description, "Snarl multi DC sync"},
+  {vsn, "0.8.3"},
+  {registered, []},
+  {mod, { snarl_sync_app, []}},
+  {applications,
+   [kernel,
+    stdlib,
+    snarl_dtrace,
+    merklet,
+    ranch,
+    lager
+   ]},
+  {env,[]},
+  {modules, []},
+
+  {maintainers, ["Heinz N. Gies"]},
+  {licenses, ["CDDL"]},
+  {links, []}
+ ]}.

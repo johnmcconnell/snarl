@@ -10,7 +10,7 @@
 
 -behaviour(gen_server).
 
--include("snarl_dtrace.hrl").
+-include_lib("snarl_dtrace/include/snarl_dtrace.hrl").
 
 -ifdef(TEST).
 -compile(export_all).
@@ -46,7 +46,7 @@
 %% @end
 %%--------------------------------------------------------------------
 start(IP, Port) ->
-    snarl_sync_sup:start_child(IP, Port).
+    snarl_sync_worker_sup:start_child(IP, Port).
 
 start_link(IP, Port) ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [IP, Port], []).
