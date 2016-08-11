@@ -13,7 +13,8 @@
          get/2,
          get/3,
          get/4,
-         list/0
+         list/0,
+         repair_metadata/0
         ]).
 
 -ignore_xref([
@@ -61,6 +62,10 @@ raw(Realm, Key) when is_binary(Key) ->
 list() ->
     ?FM(list_all, snarl_accounting_coverage, start,
         [snarl_accounting_vnode_master, snarl_accounting, list]).
+
+repair_metadata() ->
+    ?FM(list_all, snarl_accounting_coverage, start,
+        [snarl_accounting_vnode_master, snarl_accounting, repair_metadata]).
 
 
 %% sync_repair(Realm, UUID, Obj) ->

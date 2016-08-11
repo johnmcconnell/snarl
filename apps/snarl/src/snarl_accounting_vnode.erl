@@ -513,6 +513,37 @@ handle_coverage(list, _KeySpaces, Sender,
                  end || Realm <- Realms],
                 riak_core_vnode:reply(Sender, {done, {P, node()}})
         end,
+    {async, AsyncWork, Sender, State#state{dbs = #{}}};
+
+handle_coverage(repair_metadata, _KeySpaces, Sender,
+                State=#state{dbs = DBs, partition = P}) ->
+    lager:debug("[accounting:metadata_repair:~p] started.", [P]),
+    [esqlite3:close(DB) || DB <- maps:values(DBs)],
+    BasePath = base_path(State),
+    AsyncWork =
+        fun() ->
+                Realms = case file:list_dir(BasePath) of
+                             {ok, RealmsX} ->
+                                 RealmsX;
+                             _ ->
+                                 []
+                         end,
+                [begin
+                     RealmPath = filename:join([BasePath, Realm]),
+                     case file:list_dir(RealmPath) of
+                         {ok, Orgs} ->
+                             [repair_metadata(
+                                Sender,
+                                RealmPath,
+                                Realm,
+                                Org) || Org <- Orgs],
+                             ok;
+                         _ ->
+                             ok
+                     end
+                 end || Realm <- Realms],
+                riak_core_vnode:reply(Sender, {done, {P, node()}})
+        end,
     {async, AsyncWork, Sender, State#state{dbs = #{}}}.
 
 handle_list(Sender, RealmPath, Realm, Org) ->
@@ -524,6 +555,46 @@ handle_list(Sender, RealmPath, Realm, Org) ->
     riak_core_vnode:reply(Sender, {partial,
                                    list_to_binary(Realm),
                                    list_to_binary(Org), UUIDs}).
+
+
+repair_metadata(Sender, RealmPath, Realm, Org) ->
+    lager:debug("[accounting:metadata_repair] ~s/~s", [Realm, Org]),
+    OrgPath = filename:join([RealmPath, Org]),
+    {ok, C} = esqlite3:open(OrgPath),
+
+    repair_metadata(Sender, Realm, Org, C, "create"),
+    repair_metadata(Sender, Realm, Org, C, "update"),
+    repair_metadata(Sender, Realm, Org, C, "destroy"),
+    esqlite3:close(C).
+
+repair_metadata(Sender, Realm, Org, C, Table) ->
+
+    Fixed = [{Element, Time, term_to_binary(fix_meta(Meta)), Meta} ||
+                {Element, Time, Meta} <-
+                    esqlite3:q("SELECT * FROM `" ++ Table ++ "`", C)],
+    %lager:debug("[accounting:metadata_repair] to fix: ~p", [Fixed]),
+    Different = [{E, T, M} || {E, T, M, M1} <- Fixed, M /= M1],
+    Result = case [esqlite3:q("UPDATE `" ++ Table ++ "` SET metadata = ?1 "
+                              "WHERE uuid = ?2 AND time = ?3", [M, E, T], C) ||
+                      {E, T, M} <- Different] of
+                 [] -> [{<<(list_to_binary(Table))/binary, ": ok">>}];
+                 _ ->  [{<<(list_to_binary(Table))/binary, ": fixed">>}]
+             end,
+    riak_core_vnode:reply(Sender, {partial,
+                                   list_to_binary(Realm),
+                                   list_to_binary(Org),
+                                   Result}).
+
+
+fix_meta(M) when is_binary(M) ->
+    try
+        fix_meta(binary_to_term(M))
+    catch
+        _:_ ->
+            M
+    end;
+fix_meta(M) ->
+    M.
 
 handle_exit(_Pid, _Reason, State) ->
     {noreply, State}.
