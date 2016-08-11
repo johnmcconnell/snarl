@@ -558,22 +558,20 @@ handle_list(Sender, RealmPath, Realm, Org) ->
 
 
 repair_metadata(Sender, RealmPath, Realm, Org) ->
-    lager:debug("[accounting:metadata_repair] ~s/~s", [Realm, Org]),
     OrgPath = filename:join([RealmPath, Org]),
     {ok, C} = esqlite3:open(OrgPath),
-
     repair_metadata(Sender, Realm, Org, C, "create"),
     repair_metadata(Sender, Realm, Org, C, "update"),
     repair_metadata(Sender, Realm, Org, C, "destroy"),
     esqlite3:close(C).
 
 repair_metadata(Sender, Realm, Org, C, Table) ->
-
     Fixed = [{Element, Time, term_to_binary(fix_meta(Meta)), Meta} ||
                 {Element, Time, Meta} <-
                     esqlite3:q("SELECT * FROM `" ++ Table ++ "`", C)],
-    %lager:debug("[accounting:metadata_repair] to fix: ~p", [Fixed]),
     Different = [{E, T, M} || {E, T, M, M1} <- Fixed, M /= M1],
+    lager:debug("[accounting:metadata_repair] ~s/~s has ~p items to repair",
+                [Org, Table, length(Different)]),
     Result = case [esqlite3:q("UPDATE `" ++ Table ++ "` SET metadata = ?1 "
                               "WHERE uuid = ?2 AND time = ?3", [M, E, T], C) ||
                       {E, T, M} <- Different] of
