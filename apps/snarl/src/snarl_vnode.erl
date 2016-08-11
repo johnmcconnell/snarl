@@ -154,8 +154,9 @@ fold(Prefix, Fun, Acc0, Sender, State=#vstate{db=DB}) ->
 put(Realm, Key, Obj, State) when is_binary(Realm) ->
     Bucket = mk_pfx(Realm, State),
     ?FM(fifo_db, put, [State#vstate.db, Bucket, Key, Obj]),
+    SKey = snarl_sync_element:sync_key(snarl_accounting, Key),
     snarl_sync_tree:update(State#vstate.sync_tree, State#vstate.service,
-                           {Realm, Key}, Obj),
+                           {Realm, SKey}, Obj),
     riak_core_aae_vnode:update_hashtree(
       Realm, Key, vc_bin(ft_obj:vclock(Obj)), State#vstate.hashtrees).
 

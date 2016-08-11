@@ -8,6 +8,7 @@
 -export([
          trigger/4,
          sync_repair/3,
+         sync_key/1,
          list/0,
          list/1,
          list_/1,
@@ -91,6 +92,9 @@ wipe(Realm, UUID) ->
 
 sync_repair(Realm, UUID, Obj) ->
     do_write(Realm, UUID, sync_repair, Obj).
+
+sync_key(B) when is_binary(B) ->
+    B.
 
 -spec find_key(Realm::binary(), KeyID::binary()) ->
                       not_found |

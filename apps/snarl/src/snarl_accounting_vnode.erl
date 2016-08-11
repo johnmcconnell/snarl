@@ -200,8 +200,9 @@ insert(Action, Realm, OrgID, Resource, Timestamp, Metadata, State) ->
                      State),
     {Res, State2} = for_resource(Realm, OrgID, Resource, State1),
     Hash = hash_object({Realm, {OrgID, Resource}}, Res),
+    Key = snarl_sync_element:sync_key(snarl_accounting, {OrgID, Resource}),
     snarl_sync_tree:update(State#state.sync_tree, snarl_accounting,
-                           {Realm, {OrgID, Resource}}, Res),
+                           {Realm, Key}, Res),
     riak_core_aae_vnode:update_hashtree(
       Realm, term_to_binary({OrgID, Resource}), Hash, State#state.hashtrees),
     State2.

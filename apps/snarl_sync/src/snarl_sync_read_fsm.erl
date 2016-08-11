@@ -91,13 +91,15 @@ init([System, Vsn, List, From]) ->
 read(_Event, State=#state{list=[{Realm, E} = RE|R], system=Sys, version=Vsn,
                           from=F, delay=D}) ->
     lager:debug("[sync] updating ~p(~p) <- ~p", [Sys, Vsn, E]),
+    Key = snarl_sync_element:sync_key(Sys, E),
+    RK = {Realm, Key},
     case snarl_sync_element:raw(Sys, Realm, E) of
         {ok, O} ->
             lager:debug("[sync] updating ~p(~p) <- ~p", [Sys, Vsn, RE]),
-            snarl_sync_tree:insert(F, Sys, Vsn, RE, snarl_sync:hash(RE, O));
+            snarl_sync_tree:insert(F, Sys, Vsn, RK, snarl_sync:hash(RE, O));
         not_found ->
             lager:debug("[sync] delete  ~p(~p) <- ~p", [Sys, Vsn, RE]),
-            snarl_sync_tree:delete(F, Sys, RE);
+            snarl_sync_tree:delete(F, Sys, RK);
         Err ->
             lager:error("[sync] Error ~p(~p): ~p", [Sys, Vsn, Err]),
             []

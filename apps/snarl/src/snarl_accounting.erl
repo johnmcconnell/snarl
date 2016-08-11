@@ -4,6 +4,7 @@
 
 -export([
          sync_repair/3,
+         sync_key/1,
          create/5,
          update/5,
          delete/2,
@@ -31,6 +32,11 @@
           {snarl, accounting, Met},
           Mod, Fun, Args)).
 
+
+sync_key(B) when is_binary(B) ->
+    B;
+sync_key({_, _} = T) ->
+    term_to_binary(T).
 
 delete(_Realm, _Element) ->
     lager:error("[acounting] Delete is not supported for accounting data").

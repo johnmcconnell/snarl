@@ -3,11 +3,14 @@
 -include_lib("riak_core/include/riak_core_vnode.hrl").
 -include("snarl_ent.hrl").
 
+-behaviour(snarl_sync_element).
+
 -export([
          sync_repair/3,
+         sync_key/1,
          list/0, list/1, list/3, list_/1,
          get/2, get/3, raw/2, raw/3,
-         add/4, delete/3,
+         add/4, delete/3, delete/2,
          wipe/3, reindex/2
         ]).
 
@@ -30,16 +33,21 @@
 reindex(_, _) -> ok.
 
 wipe(Realm, Type, Key) ->
-    TK = term_to_binary({Type, Key}),
+    TK = sync_key({Type, Key}),
     ?FM(wipe, ?COVERAGE, start,
         [snarl_2i_vnode_master, snarl_2i, {wipe, Realm, TK}]).
 
 sync_repair(Realm, TK, Obj) ->
     do_write(Realm, TK, sync_repair, Obj).
 
+sync_key(B) when is_binary(B) ->
+    B;
+sync_key({_, _} = T) ->
+    term_to_binary(T).
+
 
 get(Realm, Type, Key) ->
-    get(Realm, term_to_binary({Type, Key})).
+    get(Realm, sync_key({Type, Key})).
 
 -spec get(Realm::binary(), TK::binary()) ->
                  not_found |
@@ -60,7 +68,7 @@ get(Realm, TK) ->
     end.
 
 raw(Realm, Type, Key) ->
-    raw(Realm, term_to_binary({Type, Key})).
+    raw(Realm, sync_key({Type, Key})).
 
 raw(Realm, TK) ->
     case ?FM(get, snarl_entity_read_fsm, start,
@@ -117,7 +125,7 @@ list(Realm, Requirements, Full)
 
 add(Realm, Type, Key, Target) ->
     lager:info("[2i] Adding 2i key ~s/~p-~p -> ~s", [Realm, Type, Key, Target]),
-    TK = term_to_binary({Type, Key}),
+    TK = sync_key({Type, Key}),
     Res = case snarl_2i:get(Realm, TK) of
               not_found ->
                   ok;
@@ -139,7 +147,10 @@ add(Realm, Type, Key, Target) ->
                     {error, timeout}.
 
 delete(Realm, Type, Key) ->
-    TK = term_to_binary({Type, Key}),
+    TK = sync_key({Type, Key}),
+    delete(Realm, TK).
+
+delete(Realm, TK) ->
     do_write(Realm, TK, delete).
 
 %%%===================================================================

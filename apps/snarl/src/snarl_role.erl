@@ -7,6 +7,7 @@
 
 -export([
          sync_repair/3,
+         sync_key/1,
          list/0, list/1, list/3, list/4, list_/1,
          get/2, raw/2,
          lookup/2,
@@ -54,6 +55,9 @@ wipe(Realm, UUID) ->
 
 sync_repair(Realm, UUID, Obj) ->
     do_write(Realm, UUID, sync_repair, Obj).
+
+sync_key(B) when is_binary(B) ->
+    B.
 
 import(Realm, Role, Data) ->
     do_write(Realm, Role, import, Data).
