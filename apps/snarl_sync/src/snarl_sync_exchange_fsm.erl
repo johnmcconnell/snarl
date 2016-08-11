@@ -233,6 +233,24 @@ sync_get(_, State = #state{get=[]}) ->
 %% @end
 %%--------------------------------------------------------------------
 
+sync_push(_, State = #state{
+                        socket=Socket,
+                        timeout=Timeout,
+                        push=[{Sys = snarl_accounting, {Realm, UUID}}|R]}) ->
+    lager:debug("[sync-exchange:acc] Push: ~p", [{Sys, {Realm, UUID}}]),
+    case gen_tcp:send(Socket, term_to_binary({raw, Sys, Realm, UUID})) of
+        ok ->
+            case gen_tcp:recv(Socket, 0, Timeout) of
+                {error, E} ->
+                    error_stop(recv, E, State);
+                {ok, RBin} ->
+                    repair_accounting(Realm, UUID, RBin),
+                    {next_state, sync_push, State#state{push=R}, 0}
+            end;
+        E ->
+            error_stop(send_raw, E, State)
+    end;
+
 sync_push(_, State = #state{push=[{Sys, {Realm, UUID}}|R]}) ->
     lager:debug("[sync-exchange] Push: ~p", [{Sys, {Realm, UUID}}]),
     case snarl_sync_element:raw(Sys, Realm, UUID) of
@@ -374,14 +392,19 @@ error_stop(Reason, Error, State) ->
 %%%===================================================================
 
 repair_accounting(Realm, UUID, RBin) ->
-    {ok, RObj}  = binary_to_term(RBin),
+    RObj = case binary_to_term(RBin) of
+               {ok, RObjx}  ->
+                   RObjx;
+               not_found ->
+                   []
+           end,
     case snarl_accounting:raw(Realm, UUID) of
         {ok, LObj} ->
             %% If we have local missing we update
             %% our local code first.
             repair_accounting_diff(Realm, UUID, RObj, LObj);
         _ ->
-            ok
+            repair_accounting_diff(Realm, UUID, RObj, [])
     end.
 
 repair_accounting_diff(Realm, UUID, RObj, LObj) ->
