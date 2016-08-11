@@ -54,10 +54,18 @@ delete(PID, System, ID) ->
 done(PID, System, Vsn) ->
     gen_server:cast(PID, {done, System, Vsn}).
 
-insert(PID, System, Vsn, ID, H) ->
-    gen_server:cast(PID, {insert, System, Vsn, ID, H}).
+insert(PID, System, Vsn, {_Realm, _Key} = ID, Hash)
+  when is_atom(System),
+       is_integer(Vsn),
+       is_binary(_Realm),
+       is_binary(_Key),
+       is_binary(Hash) ->
+    gen_server:cast(PID, {insert, System, Vsn, ID, Hash}).
 
-update(PID, System, ID, Obj) ->
+update(PID, System, {_Realm, _Key} = ID, Obj)
+  when is_atom(System),
+       is_binary(_Realm),
+       is_binary(_Key) ->
     gen_server:cast(PID, {update, System, ID, Obj}).
 
 %%%===================================================================
@@ -123,7 +131,7 @@ handle_call(_Request, _From, State) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_cast({update, Sys, ID, Obj}, State = #state{version =Vsn}) ->
-    {noreply, update_tree(Sys, ID, snarl_sync:hash(ID, Obj), Vsn-1, State)};
+    {noreply, update_tree(Sys, ID, snarl_sync:hash(ID, Obj), Vsn - 1, State)};
 handle_cast({delete, Sys, ID}, State = #state{tree = Tree}) ->
     Tree1 = [E || E = {{S, Id}, _} <- Tree, S =/= Sys andalso ID =/= Id],
     {noreply, State#state{tree=Tree1}};
