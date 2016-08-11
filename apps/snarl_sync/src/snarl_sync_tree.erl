@@ -82,8 +82,11 @@ init([]) ->
                _ ->
                    ?RECHECK_IVAL
            end,
+    %% Update after 5 minutes running.
+    erlang:send_after(1000*60*5, self(), update_tree),
+    %% then update in intevals.
     timer:send_interval(IVal, update_tree),
-    {ok, #state{}, 0}.
+    {ok, #state{}}.
 
 %%--------------------------------------------------------------------
 %% @private
