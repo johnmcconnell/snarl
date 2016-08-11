@@ -207,7 +207,7 @@ handle_info(sync, State = #state{socket = Socket, timeout = Timeout}) ->
 handle_info(reconnect, State = #state{socket = Old, ip=IP, port=Port,
                                       timeout = Timeout}) ->
     maybe_close(Old),
-    State1 = State#state{reconnect_timer = undefiend},
+    State1 = State#state{reconnect_timer = undefined},
     case gen_tcp:connect(IP, Port, [{send_timeout, State#state.timeout} |
                                     ?CON_OPTS], Timeout) of
         {ok, Socket} ->
@@ -305,7 +305,7 @@ cancle_timer(#state{timer = undefiend}) ->
 cancle_timer(#state{timer = T}) ->
     erlang:cancel_timer(T).
 
-reconnect(State = #state{reconnect_timer = undefiend}) ->
+reconnect(State = #state{reconnect_timer = undefined}) ->
     Wait = random:uniform(2000) + 500,
     lager:warning("[sync] Reconnecting in ~pms", [Wait]),
     T1 = erlang:send_after(Wait, self(), reconnect),
