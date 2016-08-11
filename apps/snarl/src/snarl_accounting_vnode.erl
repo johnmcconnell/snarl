@@ -409,12 +409,14 @@ handle_org(RealmPath, Fun, Realm, Org, Acc) ->
             OrgB = list_to_binary(Org),
             {{ResOut, LOut}, AccOut} =
                 lists:foldl(fun({Res, T, M, A}, {{Res, L}, AccRes}) ->
-                                    {{Res, [{T, a2a(A), M} | L]}, AccRes};
+                                    MB = binary_to_term(M),
+                                    {{Res, [{T, a2a(A), MB} | L]}, AccRes};
                                ({Res, T, M, A}, {{ResOut, LOut}, AccRes}) ->
                                     AccRes1 = Fun({RealmB,
                                                    {OrgB, ResOut}},
                                                   LOut, AccRes),
-                                    {{Res, [{T, a2a(A), M}]}, AccRes1}
+                                    MB = binary_to_term(M),
+                                    {{Res, [{T, a2a(A), MB}]}, AccRes1}
                             end, {In, Acc}, Es),
             Fun({RealmB, {OrgB, ResOut}}, LOut, AccOut)
     end.
