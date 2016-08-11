@@ -146,7 +146,7 @@ sync_diff(
                     error_stop(recv, E, State);
                 {ok, RBin} ->
                     repair_accounting(Realm, UUID, RBin),
-                    {next_state, sync_get, State#state{diff=R}, 0}
+                    {next_state, sync_diff, State#state{diff=R}, 0}
             end;
         E ->
             error_stop(send_raw, E, State)
