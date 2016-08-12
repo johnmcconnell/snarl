@@ -33,7 +33,7 @@
 -define(PARTIAL_SIZE, 10).
 
 hash_object(Key, Obj) ->
-    term_to_binary(erlang:phash2({Key, Obj})).
+    snarl_sync:hash(Key, Obj).
 
 mkid() ->
     mkid(node()).
