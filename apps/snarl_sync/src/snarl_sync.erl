@@ -267,33 +267,31 @@ hash(BKey, Obj) ->
     integer_to_binary(erlang:phash2({BKey, Data})).
 
 sync_trees(LTree, RTree, State = #state{ip=IP, port=Port}) ->
-    {Diff, Get, Push} = split_trees(LTree, RTree),
+    Diff = split_trees(LTree, RTree),
     lager:debug("[sync] We need to diff: ~p", [Diff]),
-    lager:debug("[sync] We need to get: ~p", [Get]),
-    lager:debug("[sync] We need to push: ~p", [Push]),
-    snarl_sync_exchange_fsm:start(IP, Port, Diff, Get, Push),
+    snarl_sync_exchange_fsm:start(IP, Port, Diff),
     State.
 
 split_trees(L, R) ->
-    split_trees(lists:sort(L), lists:sort(R), [], [], []).
+    split_trees(lists:sort(L), lists:sort(R), []).
 
-split_trees([K | LR], [K | RR], Diff, Get, Push) ->
-    split_trees(LR, RR, Diff, Get, Push);
+split_trees([K | LR], [K | RR], Diff) ->
+    split_trees(LR, RR, Diff);
 
-split_trees([{K, _} | LR], [{K, _} | RR] , Diff, Get, Push) ->
-    split_trees(LR, RR, [K | Diff], Get, Push);
+split_trees([{K, _} | LR], [{K, _} | RR], Diff) ->
+    split_trees(LR, RR, [K | Diff]);
 
-split_trees([{K, _} = L | LR], [_Kr | _] = R , Diff, Get, Push) when L < _Kr ->
-    split_trees(LR, R, Diff, Get, [K | Push]);
+split_trees([{K, _} = L | LR], [_Kr | _] = R, Diff) when L < _Kr ->
+    split_trees(LR, R, [K | Diff]);
 
-split_trees(L, [{K, _} | RR] , Diff, Get, Push) ->
-    split_trees(L, RR, Diff, [K | Get], Push);
+split_trees(L, [{K, _} | RR], Diff) ->
+    split_trees(L, RR, [K | Diff]);
 
-split_trees(L, [] , Diff, Get, Push) ->
-    {Diff, Get, Push ++ [K || {K, _} <- L]};
+split_trees(L, [], Diff) ->
+    Diff ++ [K || {K, _} <- L];
 
-split_trees([], R , Diff, Get, Push) ->
-    {Diff, Get ++ [K || {K, _} <- R], Push}.
+split_trees([], R, Diff) ->
+    Diff ++ [K || {K, _} <- R].
 
 next_tick(State = #state{interval = IVal}) ->
     Wait = random:uniform(IVal) + IVal,

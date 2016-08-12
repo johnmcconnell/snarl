@@ -11,7 +11,7 @@
 -behaviour(supervisor).
 
 %% API
--export([start_child/5, start_link/0]).
+-export([start_child/3, start_link/0]).
 
 -ignore_xref([start_link/0]).
 
@@ -24,8 +24,8 @@
 %%% API functions
 %%%===================================================================
 
-start_child(IP, Port, Diff, Get, Push) ->
-    supervisor:start_child(?SERVER, [IP, Port, Diff, Get, Push]).
+start_child(IP, Port, Diff) ->
+    supervisor:start_child(?SERVER, [IP, Port, Diff]).
 
 %%--------------------------------------------------------------------
 %% @doc
