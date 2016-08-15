@@ -76,7 +76,7 @@ rupdate(System, {_Realm, _Key} = ID, Obj) ->
     gen_server:cast(?SERVER, {update, System, ID, Obj}).
 
 update_all(System, {_Realm, _Key} = ID, Obj) ->
-    rpc:multicall(?MODULE, rupdate, [System, ID, Obj]).
+    rpc:multicall(?MODULE, rupdate, [System, ID, Obj], 500).
 
 update_tree() ->
     get_tree(undefined) ! update_tree.
