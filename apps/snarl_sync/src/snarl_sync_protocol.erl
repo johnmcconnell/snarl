@@ -31,7 +31,6 @@ loop(State = #state{transport = Transport, socket = Socket,
                          get_tree ->
                              snarl_sync:remote_sync_started(),
                              {ok, Tree} = snarl_sync_tree:get_tree(),
-                             Transport:send(Socket, term_to_binary({ok, Tree})),
                              Fun = merklet:access_serialize(Tree),
                              State#state{tree_fun = Fun};
                          {raw, System, Realm, UUID} ->
