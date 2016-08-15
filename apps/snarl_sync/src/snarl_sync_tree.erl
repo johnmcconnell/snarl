@@ -12,7 +12,7 @@
 
 %% API
 -export([start_link/0, insert/5, done/3, delete/3, get_tree/0, update/4,
-         get_tree/1, update_tree/0
+         get_tree/1, update_tree/0, rupdate/3
         %%, get_tree_data/1
         ]).
 
@@ -64,11 +64,18 @@ insert(PID, System, Vsn, {_Realm, _Key} = ID, Hash)
        is_binary(Hash) ->
     gen_server:cast(PID, {insert, System, Vsn, ID, Hash}).
 
-update(PID, System, {_Realm, _Key} = ID, Obj)
+update(_PID, System, {_Realm, _Key} = ID, Obj)
   when is_atom(System),
        is_binary(_Realm),
        is_binary(_Key) ->
-    gen_server:cast(PID, {update, System, ID, Obj}).
+    update_all(System, ID, Obj).
+%%    gen_server:cast(PID, {update, System, ID, Obj}).
+
+rupdate(System, {_Realm, _Key} = ID, Obj) ->
+    gen_server:cast(?SERVER, {update, System, ID, Obj}).
+
+update_all(System, {_Realm, _Key} = ID, Obj) ->
+    rpc:multicall(?MODULE, rupdate, [System, ID, Obj]).
 
 update_tree() ->
     get_tree(undefined) ! update_tree.
