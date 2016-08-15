@@ -185,23 +185,9 @@ handle_info(sync, State = #state{socket = undefined}) ->
     lager:warning("[sync] Can't syncing not connected."),
     {noreply, next_tick(State)};
 
-handle_info(sync, State = #state{socket = Socket, timeout = Timeout}) ->
+handle_info(sync, State) ->
     cancle_timer(State),
-    State0 = case gen_tcp:send(Socket, term_to_binary(get_tree)) of
-                 ok ->
-                     case gen_tcp:recv(Socket, 0, Timeout) of
-                         {error, E} ->
-                             lager:error("[sync] Error: ~p", [E]),
-                             reconnect(State#state{socket=undefined});
-                         {ok, Bin} ->
-                             {ok, LTree} = snarl_sync_tree:get_tree(),
-                             {ok, RTree} = binary_to_term(Bin),
-                             sync_trees(LTree, RTree, State)
-                     end;
-                 E ->
-                     lager:error("[sync] Error: ~p", [E]),
-                     reconnect(State#state{socket=undefined})
-             end,
+    State0 = do_sync(State),
     {noreply, next_tick(State0)};
 
 handle_info(reconnect, State = #state{socket = Old, ip=IP, port=Port,
@@ -250,6 +236,28 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+do_sync(State = #state{socket = Socket}) ->
+    ok = gen_tcp:send(Socket, term_to_binary(get_tree)),
+    {ok, Tree} = snarl_sync_tree:get_tree(),
+    walk_tree(Tree, State).
+
+-spec sync_fun(gen_tcp:socket(), pos_integer()) -> merklet:serial_fun().
+sync_fun(Socket, Timeout) ->
+    fun(Cmd, Path) ->
+            ok = gen_tcp:send(Socket, term_to_binary({merklet, Cmd, Path})),
+            {ok, Reply} = gen_tcp:recv(Socket, 0, Timeout),
+            Reply
+    end.
+walk_tree(Tree, State = #state{timeout = Timeout, socket = Socket}) ->
+    Fun = sync_fun(Socket, Timeout),
+    Diff = merklet:dist_diff(Tree, Fun),
+    ok = gen_tcp:send(Socket, term_to_binary(done)),
+    Diff1 = [binary_to_term(D) || D <- Diff],
+    lager:debug("[sync] We need to diff: ~p", [Diff1]),
+    %% TODO: for testing purpose
+    %%snarl_sync_exchange_fsm:start(IP, Port, Diff1),
+    State.
+
 
 maybe_close(undefined) ->
     ok;
@@ -265,14 +273,6 @@ hash(BKey, Obj) ->
                    Obj
            end,
     integer_to_binary(erlang:phash2({BKey, Data})).
-
-sync_trees(LTree, RTree, State = #state{ip = _IP, port = _Port}) ->
-    Diff =  merklet:diff(LTree, RTree),
-    Diff1 = [binary_to_term(D) || D <- Diff],
-    lager:debug("[sync] We need to diff: ~p", [Diff1]),
-    %% TODO: for testing purpose
-    %%snarl_sync_exchange_fsm:start(IP, Port, Diff1),
-    State.
 
 next_tick(State = #state{interval = IVal}) ->
     Wait = random:uniform(IVal) + IVal,
@@ -291,3 +291,4 @@ reconnect(State = #state{reconnect_timer = undefined}) ->
     State#state{reconnect_timer = T1};
 reconnect(State) ->
     State.
+
