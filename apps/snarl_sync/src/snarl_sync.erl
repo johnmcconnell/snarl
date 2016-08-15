@@ -247,12 +247,11 @@ sync_fun(Socket, Timeout) ->
             lager:debug("[merkelt] -> ~p @ ~p", [Cmd, Path]),
             ok = gen_tcp:send(Socket, term_to_binary({merklet, Cmd, Path})),
             {ok, Reply} = gen_tcp:recv(Socket, 0, Timeout),
-            Reply1 = binary_to_term(Reply),
-            lager:debug("[merkelt]  <- ~p ", [Reply1]),
-            Reply1
+            lager:debug("[merkelt]  <- ~p ", [Reply]),
+            Reply
     end.
 walk_tree(Tree, State = #state{timeout = Timeout, socket = Socket}) ->
-    Fun = sync_fun(Socket, Timeout),
+    Fun = merklet:access_unserialize(sync_fun(Socket, Timeout)),
     Diff = merklet:dist_diff(Tree, Fun),
     ok = gen_tcp:send(Socket, term_to_binary(done)),
     Diff1 = [binary_to_term(D) || D <- Diff],

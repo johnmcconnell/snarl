@@ -12,7 +12,7 @@
 
 %% API
 -export([start_link/0, insert/5, done/3, delete/3, get_tree/0, update/4,
-         get_tree/1
+         get_tree/1, update_tree/0
         %%, get_tree_data/1
         ]).
 
@@ -69,6 +69,9 @@ update(PID, System, {_Realm, _Key} = ID, Obj)
        is_binary(_Realm),
        is_binary(_Key) ->
     gen_server:cast(PID, {update, System, ID, Obj}).
+
+update_tree() ->
+    get_tree(undefined) ! update_tree.
 
 %%%===================================================================
 %%% gen_server callbacks
