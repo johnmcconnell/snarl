@@ -12,7 +12,9 @@
 
 %% API
 -export([start_link/0, insert/5, done/3, delete/3, get_tree/0, update/4,
-         get_tree/1, get_tree_data/1]).
+         get_tree/1
+        %%, get_tree_data/1
+        ]).
 
 -ignore_xref([start_link/0]).
 
@@ -23,7 +25,7 @@
 -define(SERVER, ?MODULE).
 -define(RECHECK_IVAL, 1000*60*60).
 
--record(state, {tree=[], version=0}).
+-record(state, {tree, version=0}).
 
 %%%===================================================================
 %%% API
@@ -45,8 +47,8 @@ start_link() ->
 get_tree() ->
     gen_server:call(?SERVER, get).
 
-get_tree_data(Service) ->
-    gen_server:call(?SERVER, {get, Service}).
+%% get_tree_data(Service) ->
+%%     gen_server:call(?SERVER, {get, Service}).
 
 delete(PID, System, ID) ->
     gen_server:cast(PID, {delete, System, ID}).
@@ -111,11 +113,10 @@ init([]) ->
 %% @end
 %%--------------------------------------------------------------------
 handle_call(get, _From, State = #state{tree = Tree}) ->
-    Tree1 = [{{S, Id}, H} || {{S, Id}, {_, H}} <- Tree],
-    {reply, {ok, Tree1}, State};
-handle_call({get, Service}, _From, State = #state{tree = Tree}) ->
-    Tree1 = [{{S, Id}, H} || {{S, Id}, {_, H}} <- Tree, S =:= Service],
-    {reply, {ok, Tree1}, State};
+    {reply, {ok, Tree}, State};
+%% handle_call({get, Service}, _From, State = #state{tree = Tree}) ->
+%%     Tree1 = [{{S, Id}, H} || {{S, Id}, {_, H}} <- Tree, S =:= Service],
+%%     {reply, {ok, Tree1}, State};
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
@@ -130,16 +131,15 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_cast({update, Sys, ID, Obj}, State = #state{version =Vsn}) ->
-    {noreply, update_tree(Sys, ID, snarl_sync:hash(ID, Obj), Vsn - 1, State)};
+handle_cast({update, Sys, ID, Obj}, State) ->
+    {noreply, update_tree(Sys, ID, snarl_sync:hash(ID, Obj), State)};
 handle_cast({delete, Sys, ID}, State = #state{tree = Tree}) ->
-    Tree1 = [E || E = {{S, Id}, _} <- Tree, S =/= Sys andalso ID =/= Id],
-    {noreply, State#state{tree=Tree1}};
-handle_cast({done, Sys, Version}, State = #state{tree = Tree}) ->
-    Tree1 = [E || E = {{S, _}, {V, _}} <- Tree, V >= Version orelse S =/= Sys],
-    {noreply, State#state{tree=Tree1}};
-handle_cast({insert, Sys, Vsn, ID, Hash}, State) ->
-    {noreply, update_tree(Sys, ID, Hash, Vsn, State)};
+    Tree1 = merklet:delete(term_to_binary({Sys, ID}), Tree),
+    {noreply, State#state{tree = Tree1}};
+handle_cast({done, _Sys, _Version}, State) ->
+    {noreply, State};
+handle_cast({insert, Sys, _Vsn, ID, Hash}, State) ->
+    {noreply, update_tree(Sys, ID, Hash, State)};
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
@@ -212,6 +212,6 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-update_tree(Sys, ID, H, Vsn, State = #state{tree=Tree}) ->
-    Tree1 = orddict:store({Sys, ID}, {Vsn, H}, Tree),
+update_tree(Sys, ID, H, State = #state{tree=Tree}) ->
+    Tree1 = merklet:insert({term_to_binary({Sys, ID}), H}, Tree),
     State#state{tree=Tree1}.

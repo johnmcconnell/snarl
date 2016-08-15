@@ -17,7 +17,7 @@
 -endif.
 
 %% API
--export([start/2, start_link/2, sync_op/7, hash/2, split_trees/2, sync/0,
+-export([start/2, start_link/2, sync_op/7, hash/2, sync/0,
          remote_sync_started/0]).
 
 -ignore_xref([start_link/2]).
@@ -266,32 +266,13 @@ hash(BKey, Obj) ->
            end,
     integer_to_binary(erlang:phash2({BKey, Data})).
 
-sync_trees(LTree, RTree, State = #state{ip=IP, port=Port}) ->
-    Diff = split_trees(LTree, RTree),
-    lager:debug("[sync] We need to diff: ~p", [Diff]),
-    snarl_sync_exchange_fsm:start(IP, Port, Diff),
+sync_trees(LTree, RTree, State = #state{ip = _IP, port = _Port}) ->
+    Diff =  merklet:diff(LTree, RTree),
+    Diff1 = [binary_to_term(D) || D <- Diff],
+    lager:debug("[sync] We need to diff: ~p", [Diff1]),
+    %% TODO: for testing purpose
+    %%snarl_sync_exchange_fsm:start(IP, Port, Diff1),
     State.
-
-split_trees(L, R) ->
-    split_trees(lists:sort(L), lists:sort(R), []).
-
-split_trees([K | LR], [K | RR], Diff) ->
-    split_trees(LR, RR, Diff);
-
-split_trees([{K, _} | LR], [{K, _} | RR], Diff) ->
-    split_trees(LR, RR, [K | Diff]);
-
-split_trees([{K, _} = L | LR], [_Kr | _] = R, Diff) when L < _Kr ->
-    split_trees(LR, R, [K | Diff]);
-
-split_trees(L, [{K, _} | RR], Diff) ->
-    split_trees(L, RR, [K | Diff]);
-
-split_trees(L, [], Diff) ->
-    Diff ++ [K || {K, _} <- L];
-
-split_trees([], R, Diff) ->
-    Diff ++ [K || {K, _} <- R].
 
 next_tick(State = #state{interval = IVal}) ->
     Wait = random:uniform(IVal) + IVal,
