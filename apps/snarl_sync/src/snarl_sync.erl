@@ -244,9 +244,12 @@ do_sync(State = #state{socket = Socket}) ->
 -spec sync_fun(gen_tcp:socket(), pos_integer()) -> merklet:serial_fun().
 sync_fun(Socket, Timeout) ->
     fun(Cmd, Path) ->
+            lager:debug("[merkelt] -> ~p @ ~p", [Cmd, Path]),
             ok = gen_tcp:send(Socket, term_to_binary({merklet, Cmd, Path})),
             {ok, Reply} = gen_tcp:recv(Socket, 0, Timeout),
-            Reply
+            Reply1 = binary_to_term(Reply),
+            lager:debug("[merkelt]  <- ~p ", [Reply1]),
+            Reply1
     end.
 walk_tree(Tree, State = #state{timeout = Timeout, socket = Socket}) ->
     Fun = sync_fun(Socket, Timeout),
