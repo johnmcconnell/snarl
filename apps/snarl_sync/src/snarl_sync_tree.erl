@@ -72,7 +72,6 @@ update(_PID, System, {_Realm, _Key} = ID, Obj)
 %%    gen_server:cast(PID, {update, System, ID, Obj}).
 
 rupdate(System, {_Realm, _Key} = ID, Obj) ->
-    lager:debug("[rupdate] ~p", [ID]),
     gen_server:cast(?SERVER, {update, System, ID, Obj}).
 
 update_all(System, {_Realm, _Key} = ID, Obj) ->
