@@ -12,7 +12,7 @@
 
 %% API
 -export([start_link/0, insert/5, done/3, delete/3, get_tree/0, update/4,
-         get_tree/1, update_tree/0, rupdate/3
+         get_tree/1, update_tree/0, rupdate/3, stats/0
         %%, get_tree_data/1
         ]).
 
@@ -25,7 +25,10 @@
 -define(SERVER, ?MODULE).
 -define(RECHECK_IVAL, 1000*60*60).
 
--record(state, {tree, version=0}).
+-record(state, {last_update,
+                tree,
+                version = 0,
+                updates = 0}).
 
 %%%===================================================================
 %%% API
@@ -46,6 +49,9 @@ start_link() ->
 
 get_tree() ->
     gen_server:call(?SERVER, get).
+
+stats() ->
+    gen_server:call(?SERVER, stats).
 
 %% get_tree_data(Service) ->
 %%     gen_server:call(?SERVER, {get, Service}).
@@ -122,6 +128,15 @@ init([]) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+handle_call(stats,
+            _From, State =
+                #state{tree = Tree,
+                       last_update = LastUpdate,
+                       updates = Updates}) ->
+    Count = length(merklet:keys(Tree)),
+    Res =  {Count, LastUpdate, Updates},
+    {reply, {ok, Res}, State};
+
 handle_call(get, _From, State = #state{tree = Tree}) ->
     {reply, {ok, Tree}, State};
 %% handle_call({get, Service}, _From, State = #state{tree = Tree}) ->
@@ -189,7 +204,7 @@ handle_info(update_tree, State = #state{version = Vsn}) ->
         _ ->
             ok
     end,
-    {noreply, State#state{version = Vsn1}};
+    {noreply, State#state{version = Vsn1, last_update = erlang:system_time()}};
 
 handle_info(_Info, State) ->
     {noreply, State}.

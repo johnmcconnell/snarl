@@ -18,7 +18,7 @@
 
 %% API
 -export([start/2, start_link/2, sync_op/7, hash/2, sync/0,
-         remote_sync_started/0]).
+         remote_sync_started/0, enabled/0]).
 
 -ignore_xref([start_link/2]).
 
@@ -38,6 +38,13 @@
 %%% API
 %%%===================================================================
 
+enabled() ->
+    case application:get_env(snarl, sync) of
+        {ok, on} ->
+            true;
+        _ ->
+            false
+    end.
 %%--------------------------------------------------------------------
 %% @doc
 %% Starts the server
