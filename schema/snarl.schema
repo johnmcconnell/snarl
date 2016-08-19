@@ -298,3 +298,9 @@
  [{default, "365d"},
   {commented, "365d"},
   {datatype, {duration, d}}]}.
+
+%% @doc Home directory for the run user
+{mapping, "run_user_home", "setup.home",
+  [{default, "{{run_user_home}}"},
+   hidden,
+   {datatype, string}]}.
