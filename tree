@@ -38,6 +38,10 @@
 │  └─ ranch─1.1.0
 ├─ merklet─1.0.0
 ├─ oauth2─0.6.1
+├─ qdate─0.4.3
+│  ├─ erlang_localtime─1.0.0
+│  └─ erlware_commons─0.20.0
+│     └─ cf─0.2.1
 ├─ rankmatcher─0.1.5
 ├─ recon─2.3.1
 ├─ riak_core─2.2.6
