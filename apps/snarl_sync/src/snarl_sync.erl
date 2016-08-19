@@ -10,15 +10,15 @@
 
 -behaviour(gen_server).
 
--include("snarl_dtrace.hrl").
+-include_lib("snarl_dtrace/include/snarl_dtrace.hrl").
 
 -ifdef(TEST).
 -compile(export_all).
 -endif.
 
 %% API
--export([start/2, start_link/2, sync_op/7, hash/2, split_trees/2, sync/0,
-         remote_sync_started/0]).
+-export([start/2, start_link/2, sync_op/7, hash/2, sync/0,
+         remote_sync_started/0, enabled/0]).
 
 -ignore_xref([start_link/2]).
 
@@ -38,6 +38,13 @@
 %%% API
 %%%===================================================================
 
+enabled() ->
+    case application:get_env(snarl, sync) of
+        {ok, on} ->
+            true;
+        _ ->
+            false
+    end.
 %%--------------------------------------------------------------------
 %% @doc
 %% Starts the server
@@ -46,7 +53,7 @@
 %% @end
 %%--------------------------------------------------------------------
 start(IP, Port) ->
-    snarl_sync_sup:start_child(IP, Port).
+    snarl_sync_worker_sup:start_child(IP, Port).
 
 start_link(IP, Port) ->
     gen_server:start_link({local, ?SERVER}, ?MODULE, [IP, Port], []).
@@ -185,29 +192,15 @@ handle_info(sync, State = #state{socket = undefined}) ->
     lager:warning("[sync] Can't syncing not connected."),
     {noreply, next_tick(State)};
 
-handle_info(sync, State = #state{socket = Socket, timeout = Timeout}) ->
+handle_info(sync, State) ->
     cancle_timer(State),
-    State0 = case gen_tcp:send(Socket, term_to_binary(get_tree)) of
-                 ok ->
-                     case gen_tcp:recv(Socket, 0, Timeout) of
-                         {error, E} ->
-                             lager:error("[sync] Error: ~p", [E]),
-                             reconnect(State#state{socket=undefined});
-                         {ok, Bin} ->
-                             {ok, LTree} = snarl_sync_tree:get_tree(),
-                             {ok, RTree} = binary_to_term(Bin),
-                             sync_trees(LTree, RTree, State)
-                     end;
-                 E ->
-                     lager:error("[sync] Error: ~p", [E]),
-                     reconnect(State#state{socket=undefined})
-             end,
+    State0 = do_sync(State),
     {noreply, next_tick(State0)};
 
 handle_info(reconnect, State = #state{socket = Old, ip=IP, port=Port,
                                       timeout = Timeout}) ->
     maybe_close(Old),
-    State1 = State#state{reconnect_timer = undefiend},
+    State1 = State#state{reconnect_timer = undefined},
     case gen_tcp:connect(IP, Port, [{send_timeout, State#state.timeout} |
                                     ?CON_OPTS], Timeout) of
         {ok, Socket} ->
@@ -250,6 +243,30 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
+do_sync(State = #state{socket = Socket}) ->
+    ok = gen_tcp:send(Socket, term_to_binary(get_tree)),
+    {ok, Tree} = snarl_sync_tree:get_tree(),
+    walk_tree(Tree, State).
+
+-spec sync_fun(gen_tcp:socket(), pos_integer()) -> merklet:serial_fun().
+sync_fun(Socket, Timeout) ->
+    fun(Cmd, Path) ->
+            ok = gen_tcp:send(Socket, term_to_binary({merklet, Cmd, Path})),
+            {ok, Reply} = gen_tcp:recv(Socket, 0, Timeout),
+            Reply
+    end.
+walk_tree(Tree, State = #state{ip = IP, port = Port,
+                               timeout = Timeout, socket = Socket}) ->
+    lager:debug("[merkelt:~p] Starting remote tree walk.", [IP]),
+    Fun = merklet:access_unserialize(sync_fun(Socket, Timeout)),
+    Diff = merklet:dist_diff(Tree, Fun),
+    lager:debug("[merkelt:~p] Tree walk finished.", [IP]),
+    ok = gen_tcp:send(Socket, term_to_binary(done)),
+    Diff1 = [binary_to_term(D) || D <- Diff],
+    lager:debug("[sync] We need to diff: ~p", [Diff1]),
+    snarl_sync_exchange_fsm:start(IP, Port, Diff1),
+    State.
+
 
 maybe_close(undefined) ->
     ok;
@@ -266,35 +283,6 @@ hash(BKey, Obj) ->
            end,
     integer_to_binary(erlang:phash2({BKey, Data})).
 
-sync_trees(LTree, RTree, State = #state{ip=IP, port=Port}) ->
-    {Diff, Get, Push} = split_trees(LTree, RTree),
-    lager:debug("[sync] We need to diff: ~p", [Diff]),
-    lager:debug("[sync] We need to get: ~p", [Get]),
-    lager:debug("[sync] We need to push: ~p", [Push]),
-    snarl_sync_exchange_fsm:start(IP, Port, Diff, Get, Push),
-    State.
-
-split_trees(L, R) ->
-    split_trees(lists:sort(L), lists:sort(R), [], [], []).
-
-split_trees([K | LR], [K | RR], Diff, Get, Push) ->
-    split_trees(LR, RR, Diff, Get, Push);
-
-split_trees([{K, _} | LR], [{K, _} | RR] , Diff, Get, Push) ->
-    split_trees(LR, RR, [K | Diff], Get, Push);
-
-split_trees([{K, _} = L | LR], [_Kr | _] = R , Diff, Get, Push) when L < _Kr ->
-    split_trees(LR, R, Diff, Get, [K | Push]);
-
-split_trees(L, [{K, _} | RR] , Diff, Get, Push) ->
-    split_trees(L, RR, Diff, [K | Get], Push);
-
-split_trees(L, [] , Diff, Get, Push) ->
-    {Diff, Get, Push ++ [K || {K, _} <- L]};
-
-split_trees([], R , Diff, Get, Push) ->
-    {Diff, Get ++ [K || {K, _} <- R], Push}.
-
 next_tick(State = #state{interval = IVal}) ->
     Wait = random:uniform(IVal) + IVal,
     T1 = erlang:send_after(Wait, self(), sync),
@@ -305,10 +293,11 @@ cancle_timer(#state{timer = undefiend}) ->
 cancle_timer(#state{timer = T}) ->
     erlang:cancel_timer(T).
 
-reconnect(State = #state{reconnect_timer = undefiend}) ->
+reconnect(State = #state{reconnect_timer = undefined}) ->
     Wait = random:uniform(2000) + 500,
     lager:warning("[sync] Reconnecting in ~pms", [Wait]),
     T1 = erlang:send_after(Wait, self(), reconnect),
     State#state{reconnect_timer = T1};
 reconnect(State) ->
     State.
+

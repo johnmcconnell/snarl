@@ -78,7 +78,7 @@ init_folsom() ->
     OrgMs = [wipe, lookup, get, list, list_all, sync_repair, add_trigger,
              remove_target, remove_trigger, import, add, delete, set_metadata,
              resource_inc, resource_dec, resource_remove],
-    S2i = [list, get, add, delete, sync_repair],
+    S2i = [list, get, add, delete, sync_repair, list_all],
     TokenMs = [get, add, delete],
     AccMs = [create, update, destroy, get, get_range, list_all, sync_repair],
     [folsom_metrics:new_histogram(Name, slide, 60) ||

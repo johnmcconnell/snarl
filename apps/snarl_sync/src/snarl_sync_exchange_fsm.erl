@@ -10,16 +10,6 @@
 %%%  └───────────┘        └───────────┘
 %%%                      empty  │
 %%%                             │
-%%%         ┌───────────────────┘
-%%%         │                   ┌────────┐
-%%%         │                   │    not │
-%%%         ▼       empty       ▼   empty│
-%%%   ┌───────────┐       ┌───────────┐  │
-%%%┌─▶│    get    │──────▶│   push    │──┘
-%%%│  └───────────┘       └───────────┘
-%%%│  not   │                   │
-%%%│ empty  │                   │  empty
-%%%└────────┘                   │
 %%%                             │
 %%%                             ▼
 %%%                       ┌───────────┐
@@ -33,17 +23,17 @@
 -behaviour(gen_fsm).
 
 %% API
--export([start_link/5, start/5]).
+-export([start_link/3, start/3]).
 
 -ignore_xref([start_link/5, sync_diff/2, sync_get/2, sync_push/2]).
 
 %% gen_fsm callbacks
--export([init/1, sync_diff/2, sync_get/2, sync_push/2, handle_event/3,
+-export([init/1, sync_diff/2, handle_event/3,
          handle_sync_event/4, handle_info/3, terminate/3, code_change/4]).
 
 -define(SERVER, ?MODULE).
 
--record(state, {ip, port, socket, diff, get, push, timeout}).
+-record(state, {ip, port, socket, diff, timeout}).
 
 %%%===================================================================
 %%% API
@@ -58,14 +48,11 @@
 %% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
-start(_IP, _Port, [], [], []) ->
-    ok;
+start(IP, Port, Diff) ->
+    snarl_sync_exchange_sup:start_child(IP, Port, Diff).
 
-start(IP, Port, Diff, Get, Push) ->
-    snarl_sync_exchange_sup:start_child(IP, Port, Diff, Get, Push).
-
-start_link(IP, Port, Diff, Get, Push) ->
-    gen_fsm:start_link(?MODULE, [IP, Port, Diff, Get, Push], []).
+start_link(IP, Port, Diff) ->
+    gen_fsm:start_link(?MODULE, [IP, Port, Diff], []).
 
 %%%===================================================================
 %%% gen_fsm callbacks
@@ -84,23 +71,25 @@ start_link(IP, Port, Diff, Get, Push) ->
 %%                     {stop, StopReason}
 %% @end
 %%--------------------------------------------------------------------
-init([IP, Port, Diff, Get, Push]) ->
+init([IP, Port, Diff]) ->
+    lager:info("[sync-exchange:~p] ~p items to syncronize.",
+               [IP, length(Diff)]),
     Timeout = case application:get_env(sync_recv_timeout) of
                   {ok, T} ->
                       T;
                   _ ->
                       1500
               end,
-    State = #state{ip=IP, port=Port, diff=Diff, get=Get, push=Push,
-                   timeout=Timeout},
+    State = #state{ip=IP, port=Port, diff=Diff, timeout=Timeout},
     case gen_tcp:connect(IP, Port,
                          [binary, {active, false}, {packet, 4}],
                          Timeout) of
         {ok, Socket} ->
-            lager:info("[sync-exchange] Connected to: ~s:~p.", [IP, Port]),
+            lager:info("[sync-exchange:~p] Connected.", [IP]),
             {ok, sync_diff, State#state{socket=Socket}, 0};
         E ->
-            lager:error("[sync-exchange] Initialization failed: ~p.", [E]),
+            lager:error("[sync-exchange:~p] Initialization failed: ~p.",
+                        [IP, E]),
             {stop, connection}
     end.
 
@@ -138,7 +127,7 @@ sync_diff(
                 socket=Socket,
                 timeout=Timeout,
                 diff=[{Sys = snarl_accounting, {Realm, UUID}}|R]}) ->
-    lager:debug("[sync-exchange] Diff: ~p", [{Sys, {Realm, UUID}}]),
+    lager:debug("[sync-exchange] Exchanging: ~p", [{Sys, {Realm, UUID}}]),
     case gen_tcp:send(Socket, term_to_binary({raw, Sys, Realm, UUID})) of
         ok ->
             case gen_tcp:recv(Socket, 0, Timeout) of
@@ -146,7 +135,7 @@ sync_diff(
                     error_stop(recv, E, State);
                 {ok, RBin} ->
                     repair_accounting(Realm, UUID, RBin),
-                    {next_state, sync_get, State#state{diff=R}, 0}
+                    {next_state, sync_diff, State#state{diff=R}, 0}
             end;
         E ->
             error_stop(send_raw, E, State)
@@ -164,86 +153,15 @@ sync_diff(_, State = #state{
                 {error, E} ->
                     error_stop(recv, E, State);
                 {ok, RBin} ->
-                    repair(Sys, Realm, UUID, RBin, R, State)
+                    repair(Sys, Realm, UUID, RBin),
+                    {next_state, sync_diff, State#state{diff=R}, 0}
+
             end;
         E ->
             error_stop(send_raw, E, State)
     end;
 
 sync_diff(_, State = #state{diff=[]}) ->
-    {next_state, sync_get, State, 0}.
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Syncs a difference between an object that exists remotely but not
-%% locally. For this we simply read the object and repair it locally
-%% only.
-%%
-%% @end
-%%--------------------------------------------------------------------
-
-sync_get(_, State = #state{
-                       socket=Socket,
-                       timeout=Timeout,
-                       get=[{Sys = snarl_accounting, {Realm, UUID}}|R]}) ->
-    lager:debug("[sync-exchange:acc] Get: ~p", [{Sys, {Realm, UUID}}]),
-    case gen_tcp:send(Socket, term_to_binary({raw, Sys, Realm, UUID})) of
-        ok ->
-            case gen_tcp:recv(Socket, 0, Timeout) of
-                {error, E} ->
-                    error_stop(recv, E, State);
-                {ok, RBin} ->
-                    repair_accounting(Realm, UUID, RBin),
-                    {next_state, sync_get, State#state{get=R}, 0}
-            end;
-        E ->
-            error_stop(send_raw, E, State)
-    end;
-
-sync_get(_, State = #state{
-                       socket=Socket,
-                       timeout=Timeout,
-                       get=[{Sys, {Realm, UUID}}|R]}) ->
-    lager:debug("[sync-exchange] Get: ~p", [{Sys, {Realm, UUID}}]),
-    case gen_tcp:send(Socket, term_to_binary({raw, Sys, Realm, UUID})) of
-        ok ->
-            case gen_tcp:recv(Socket, 0, Timeout) of
-                {error, E} ->
-                    error_stop(recv, E, State);
-                {ok, Bin} ->
-                    local_repair(Sys, Realm, UUID, Bin),
-                    {next_state, sync_get, State#state{get=R}, 0}
-            end;
-        E ->
-            error_stop(send_raw, E, State)
-    end;
-
-sync_get(_, State = #state{get=[]}) ->
-    {next_state, sync_push, State, 0}.
-
-
-%%--------------------------------------------------------------------
-%% @private
-%% @doc
-%% Syncs a difference between an object that exists locally but not
-%% remotely. For this we simply write the object locally too, as that
-%% will be propagated to all nodes.
-%%
-%% @end
-%%--------------------------------------------------------------------
-
-sync_push(_, State = #state{push=[{Sys, {Realm, UUID}}|R]}) ->
-    lager:debug("[sync-exchange] Push: ~p", [{Sys, {Realm, UUID}}]),
-    case snarl_sync_element:raw(Sys, Realm, UUID) of
-        {ok, Obj} ->
-            local_repair(Sys, Realm, UUID, Obj),
-            {next_state, sync_push, State#state{push=R}, 0};
-        not_found ->
-            {next_state, sync_push, State#state{push=R}, 0}
-    end;
-
-sync_push(_, State = #state{push=[]}) ->
     {stop, normal, State}.
 
 %%--------------------------------------------------------------------
@@ -328,42 +246,28 @@ code_change(_OldVsn, StateName, State, _Extra) ->
 %%% Repair functions
 %%%===================================================================
 
-repair(Sys, Realm, UUID, RBin, R, State) ->
-    case binary_to_term(RBin) of
-        {ok, RObj} ->
-            case snarl_sync_element:raw(Sys, Realm, UUID) of
-                {ok, LObj} ->
-                    Objs = [RObj, LObj],
-                    Merged = ft_obj:merge(snarl_entity_read_fsm, Objs),
-                    %% We set node() not {remote, node()} sot this repair
-                    %% is propagated
-                    NVS = {node(), vnode(Sys), Sys},
-                    snarl_entity_write_fsm:write(NVS, {Realm, UUID},
-                                                 sync_repair, Merged),
-                    {next_state, sync_diff, State#state{diff=R}, 0};
-                _ ->
-                    {next_state, sync_diff, State#state{diff=R}, 0}
-            end;
-        not_found ->
-            {next_state, sync_diff, State#state{diff=R}, 0}
+repair(Sys, Realm, UUID, RBin) ->
+    Merged = case binary_to_term(RBin) of
+                 {ok, RObj} ->
+                     case snarl_sync_element:raw(Sys, Realm, UUID) of
+                         {ok, LObj} ->
+                             Objs = [RObj, LObj],
+                             {ok, ft_obj:merge(snarl_entity_read_fsm, Objs)};
+                         _ ->
+                             {ok, RObj}
+                     end;
+                 not_found ->
+                     snarl_sync_element:raw(Sys, Realm, UUID)
+             end,
+    %% We set node() not {remote, node()} sot this repair
+    %% is propagated
+    case Merged of
+        {ok, New} ->
+            NVS = {node(), vnode(Sys), Sys},
+            snarl_entity_write_fsm:write(NVS, {Realm, UUID}, sync_repair, New);
+        _ ->
+            ok
     end.
-
-local_repair(Sys, Realm, UUID, Bin) when is_binary(Bin) ->
-    case binary_to_term(Bin) of
-        {ok, Obj} ->
-            local_repair(Sys, Realm, UUID, Obj);
-        not_found ->
-            local_repair(Sys, Realm, UUID, not_found)
-    end;
-
-local_repair(Sys, Realm, UUID, not_found) ->
-    NVS = {node(), vnode(Sys), Sys},
-    snarl_entity_write_fsm:write(NVS, {Realm, UUID}, delete, undefined);
-
-local_repair(Sys, Realm, UUID, Obj) ->
-    NVS = {node(), vnode(Sys), Sys},
-    lager:debug("[sync-exchange] repairing(~p): ~p", [NVS, Obj]),
-    snarl_entity_write_fsm:write(NVS, {Realm, UUID}, sync_repair, Obj).
 
 error_stop(Reason, Error, State) ->
     lager:error("[sync-exchange] Error: ~p", [Error]),
@@ -374,14 +278,19 @@ error_stop(Reason, Error, State) ->
 %%%===================================================================
 
 repair_accounting(Realm, UUID, RBin) ->
-    {ok, RObj}  = binary_to_term(RBin),
+    RObj = case binary_to_term(RBin) of
+               {ok, RObjx}  ->
+                   RObjx;
+               not_found ->
+                   []
+           end,
     case snarl_accounting:raw(Realm, UUID) of
         {ok, LObj} ->
             %% If we have local missing we update
             %% our local code first.
             repair_accounting_diff(Realm, UUID, RObj, LObj);
         _ ->
-            ok
+            repair_accounting_diff(Realm, UUID, RObj, [])
     end.
 
 repair_accounting_diff(Realm, UUID, RObj, LObj) ->

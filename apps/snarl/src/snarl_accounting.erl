@@ -4,6 +4,7 @@
 
 -export([
          sync_repair/3,
+         sync_key/1,
          create/5,
          update/5,
          delete/2,
@@ -12,7 +13,8 @@
          get/2,
          get/3,
          get/4,
-         list/0
+         list/0,
+         repair_metadata/0
         ]).
 
 -ignore_xref([
@@ -32,10 +34,16 @@
           Mod, Fun, Args)).
 
 
+sync_key(B) when is_binary(B) ->
+    B;
+sync_key({_, _} = T) ->
+    term_to_binary(T).
+
 delete(_Realm, _Element) ->
     lager:error("[acounting] Delete is not supported for accounting data").
 
-sync_repair(Realm, {Org, Elem}, Obj) ->
+sync_repair(Realm, Key, Obj) ->
+    {Org, Elem} = binary_to_term(Key),
     do_write(Realm, Org, sync_repair, {Elem, Obj}).
 
 create(Realm, Org, Resource, Time, Metadata) ->
@@ -47,12 +55,17 @@ update(Realm, Org, Resource, Time, Metadata) ->
 destroy(Realm, Org, Resource, Time, Metadata) ->
     do_write(Realm, Org, destroy, {Resource, Time, Metadata}).
 
-raw(Realm, {Org, UUID}) ->
+raw(Realm, Key) when is_binary(Key) ->
+    {Org, UUID} = binary_to_term(Key),
     get(Realm, Org, UUID).
 
 list() ->
     ?FM(list_all, snarl_accounting_coverage, start,
         [snarl_accounting_vnode_master, snarl_accounting, list]).
+
+repair_metadata() ->
+    ?FM(list_all, snarl_accounting_coverage, start,
+        [snarl_accounting_vnode_master, snarl_accounting, repair_metadata]).
 
 
 %% sync_repair(Realm, UUID, Obj) ->

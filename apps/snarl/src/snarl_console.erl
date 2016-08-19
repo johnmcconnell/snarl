@@ -35,6 +35,13 @@
          scope_add/1,
          scope_toggle/1]).
 
+-export([sync_stats/1,
+         sync_trigger/1,
+         sync_update/1]).
+-ignore_xref([sync_stats/1,
+              sync_trigger/1,
+              sync_update/2]).
+
 -ignore_xref([
               db_keys/1,
               db_get/1,
@@ -537,6 +544,40 @@ scope_toggle([RealmS, ScopeS]) ->
                       [Realm, Scope]),
             ok
     end.
+
+sync_stats([]) ->
+    case snarl_sync:enabled() of
+        true ->
+            {ok, {Count, LastUpdate, Updates}} =
+                snarl_sync_tree:stats(),
+            LastUpdateSecs = LastUpdate div (1000 * 1000* 1000),
+            LastUpdateStr = qdate:to_string("r", LastUpdateSecs),
+            io:format("Last update: ~s~n", [LastUpdateStr]),
+            io:format("Elements in sync tree: ~p~n", [Count]),
+            io:format("Number of updates: ~p~n", [Updates]);
+        false ->
+            io:format("MultiDC sync is disabled!~n")
+    end,
+    ok.
+
+sync_trigger([]) ->
+    case snarl_sync:enabled() of
+        true ->
+            io:format("Triggering Multi DC Sync!~n"),
+            snarl_sync:sync();
+        false ->
+            io:format("MultiDC sync is disabled!~n")
+    end,
+    ok.
+sync_update([]) ->
+    case snarl_sync:enabled() of
+        true ->
+            io:format("Updating sync tree.~n"),
+            snarl_sync_tree:update_tree();
+        false ->
+            io:format("MultiDC sync is disabled!~n")
+    end,
+    ok.
 
 %%%===================================================================
 %%% Private

@@ -6,6 +6,7 @@
   {applications,
     [kernel,
      stdlib,
+     qdate,
      riak_core,
      fifo_db,
      fifo_dt,
@@ -26,21 +27,17 @@
      bitcask,
      snarl_oauth,
      snarl_coverage,
+     snarl_sync,
+     snarl_dtrace,
      esqlite,
      yubico,
      esel
      ]},
   {mod, {snarl_app, []}},
-  {env,
-   [{r, 2},
-    {n, 3},
-    {w, 3},
-    {snarl_user, {3, 2, 3}},
-    {snarl_role, {3, 2, 3}},
-    {auto_gc, disabled},
-    {user_sync_timeout,  {1, week}},
-    {role_sync_timeout, {1, week}},
-    {user_bucket_size, 50},
-    {role_bucket_size, 50}
-   ]}
+  {env, []},
+  {modules, []},
+
+  {maintainers, ["Heinz N. Gies"]},
+  {licenses, ["CDDL"]},
+  {links, []}
  ]}.
