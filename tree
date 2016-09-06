@@ -6,8 +6,8 @@
 ├─ eper─0.94.0
 ├─ esel─0.1.2
 ├─ esqlite─0.2.2
-├─ fifo_db─0.2.2
-│  ├─ eleveldb─2.1.3
+├─ fifo_db─0.2.3
+│  ├─ eleveldb─2.2.19
 │  └─ erocksdb─0.4.1
 ├─ fifo_dt─0.1.69
 │  └─ riak_dt─2.1.1
