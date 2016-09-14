@@ -304,3 +304,8 @@
   [{default, "{{run_user_home}}"},
    hidden,
    {datatype, string}]}.
+
+{mapping, "accounting", "snarl.accounting",
+  [{default, off},
+   hidden,
+   {datatype, flag}]}.
