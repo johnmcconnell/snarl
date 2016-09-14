@@ -21,7 +21,6 @@
          hash_object/2,
          mk_reqid/0]).
 
-%%-callback
 -ignore_xref([mkid/0, delete/2]).
 
 -define(FM(Mod, Fun, Args),
@@ -33,7 +32,7 @@
 -define(PARTIAL_SIZE, 10).
 
 hash_object(Key, Obj) ->
-    term_to_binary(erlang:phash2({Key, Obj})).
+    snarl_sync:hash(Key, Obj).
 
 mkid() ->
     mkid(node()).
@@ -154,8 +153,9 @@ fold(Prefix, Fun, Acc0, Sender, State=#vstate{db=DB}) ->
 put(Realm, Key, Obj, State) when is_binary(Realm) ->
     Bucket = mk_pfx(Realm, State),
     ?FM(fifo_db, put, [State#vstate.db, Bucket, Key, Obj]),
+    SKey = snarl_sync_element:sync_key(snarl_accounting, Key),
     snarl_sync_tree:update(State#vstate.sync_tree, State#vstate.service,
-                           {Realm, Key}, Obj),
+                           {Realm, SKey}, Obj),
     riak_core_aae_vnode:update_hashtree(
       Realm, Key, vc_bin(ft_obj:vclock(Obj)), State#vstate.hashtrees).
 

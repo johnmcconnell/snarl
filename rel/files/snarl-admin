@@ -127,12 +127,15 @@ run()
 
 usage() {
     echo "Usage: $SCRIPT { cluster | join | leave | backup | restore | test | "
-    echo "                    reip | wait-for-service | ringready | transfers | force-remove | down |"
-    echo "                    cluster-info | member-status | ring-status | vnode-status |"
-    echo "                    diag | stat | status | transfer-limit | downgrade-objects | services"
-    echo "                    handoff | set | show | describe }"
+    echo "                 reip | wait-for-service | ringready | transfers | force-remove | down |"
+    echo "                 cluster-info | member-status | ring-status | vnode-status |"
+    echo "                 diag | stat | status | transfer-limit | downgrade-objects | services"
+    echo "                 handoff | set | show | describe }"
     echo "               connections                        - shows the current connections to other srivces."
     echo "               ring                               - shows the ring."
+    echo "               sync status                        - shows sync status."
+    echo "               sync trigger                       - triggers ."
+    echo "               sync rebuid                        - shows the ring."
 
 }
 
@@ -186,6 +189,29 @@ stat_admin()
             ;;
         *)
             stat_help
+    esac
+}
+
+sync_admin()
+{
+    case "$1" in
+        stats)
+            shift
+            node_up_check
+            $NODETOOL rpc snarl_console sync_stats
+            ;;
+        trigger)
+            shift
+            node_up_check
+            $NODETOOL rpc snarl_console sync_trigger
+            ;;
+        update)
+            shift
+            node_up_check
+            $NODETOOL rpc snarl_console sync_update
+            ;;
+        *)
+            usage
     esac
 }
 
@@ -696,6 +722,10 @@ case "$1" in
                        -s init stop
         ;;
 
+    sync)
+        shift
+        sync_admin "$@"
+        ;;
     ## Riak command groups
     cluster)
         shift
@@ -899,7 +929,7 @@ case "$1" in
         echo "               scope grant <realm> <scope> <permission>   - grants a permission to a scope."
         echo "               scope revoke <realm> <scope> <permission>  - revokes a permission to a scope."
         echo "               scope toggle <realm> <scope>               - toggles weather this is part of the default scope."
-        echo "               intit <realm> <org> <role> <user> <pass>   - initializes a realm with a fresh org and user and role."
+        echo "               init <realm> <org> <role> <user> <pass>    - initializes a realm with a fresh org and user and role."
         exit 1
         ;;
 esac

@@ -12,7 +12,9 @@
 
 %% API
 -export([start_link/0, insert/5, done/3, delete/3, get_tree/0, update/4,
-         get_tree/1]).
+         get_tree/1, update_tree/0, rupdate/3, stats/0
+        %%, get_tree_data/1
+        ]).
 
 -ignore_xref([start_link/0]).
 
@@ -23,7 +25,10 @@
 -define(SERVER, ?MODULE).
 -define(RECHECK_IVAL, 1000*60*60).
 
--record(state, {tree=[], version=0}).
+-record(state, {last_update,
+                tree,
+                version = 0,
+                updates = 0}).
 
 %%%===================================================================
 %%% API
@@ -45,17 +50,41 @@ start_link() ->
 get_tree() ->
     gen_server:call(?SERVER, get).
 
+stats() ->
+    gen_server:call(?SERVER, stats).
+
+%% get_tree_data(Service) ->
+%%     gen_server:call(?SERVER, {get, Service}).
+
 delete(PID, System, ID) ->
     gen_server:cast(PID, {delete, System, ID}).
 
 done(PID, System, Vsn) ->
     gen_server:cast(PID, {done, System, Vsn}).
 
-insert(PID, System, Vsn, ID, H) ->
-    gen_server:cast(PID, {insert, System, Vsn, ID, H}).
+insert(PID, System, Vsn, {_Realm, _Key} = ID, Hash)
+  when is_atom(System),
+       is_integer(Vsn),
+       is_binary(_Realm),
+       is_binary(_Key),
+       is_binary(Hash) ->
+    gen_server:cast(PID, {insert, System, Vsn, ID, Hash}).
 
-update(PID, System, ID, Obj) ->
-    gen_server:cast(PID, {update, System, ID, Obj}).
+update(_PID, System, {_Realm, _Key} = ID, Obj)
+  when is_atom(System),
+       is_binary(_Realm),
+       is_binary(_Key) ->
+    update_all(System, ID, Obj).
+%%    gen_server:cast(PID, {update, System, ID, Obj}).
+
+rupdate(System, {_Realm, _Key} = ID, Obj) ->
+    gen_server:cast(?SERVER, {update, System, ID, Obj}).
+
+update_all(System, {_Realm, _Key} = ID, Obj) ->
+    rpc:multicall(?MODULE, rupdate, [System, ID, Obj], 500).
+
+update_tree() ->
+    get_tree(undefined) ! update_tree.
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -79,8 +108,11 @@ init([]) ->
                _ ->
                    ?RECHECK_IVAL
            end,
-    timer:send_interval(IVal, timeout),
-    {ok, #state{}, 0}.
+    %% Update after 5 minutes running.
+    erlang:send_after(1000*60*5, self(), update_tree),
+    %% then update in intevals.
+    timer:send_interval(IVal, update_tree),
+    {ok, #state{}}.
 
 %%--------------------------------------------------------------------
 %% @private
@@ -96,9 +128,20 @@ init([]) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
+handle_call(stats,
+            _From, State =
+                #state{tree = Tree,
+                       last_update = LastUpdate,
+                       updates = Updates}) ->
+    Count = length(merklet:keys(Tree)),
+    Res =  {Count, LastUpdate, Updates},
+    {reply, {ok, Res}, State};
+
 handle_call(get, _From, State = #state{tree = Tree}) ->
-    Tree1 = [{{S, Id}, H} || {{S, Id}, {_, H}} <- Tree],
-    {reply, {ok, Tree1}, State};
+    {reply, {ok, Tree}, State};
+%% handle_call({get, Service}, _From, State = #state{tree = Tree}) ->
+%%     Tree1 = [{{S, Id}, H} || {{S, Id}, {_, H}} <- Tree, S =:= Service],
+%%     {reply, {ok, Tree1}, State};
 handle_call(_Request, _From, State) ->
     Reply = ok,
     {reply, Reply, State}.
@@ -113,16 +156,15 @@ handle_call(_Request, _From, State) ->
 %%                                  {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_cast({update, Sys, ID, Obj}, State = #state{version =Vsn}) ->
-    {noreply, update_tree(Sys, ID, snarl_sync:hash(ID, Obj), Vsn-1, State)};
+handle_cast({update, Sys, ID, Obj}, State) ->
+    {noreply, update_tree(Sys, ID, snarl_sync:hash(ID, Obj), State)};
 handle_cast({delete, Sys, ID}, State = #state{tree = Tree}) ->
-    Tree1 = [E || E = {{S, Id}, _} <- Tree, S =/= Sys andalso ID =/= Id],
-    {noreply, State#state{tree=Tree1}};
-handle_cast({done, Sys, Version}, State = #state{tree = Tree}) ->
-    Tree1 = [E || E = {{S, _}, {V, _}} <- Tree, V >= Version orelse S =/= Sys],
-    {noreply, State#state{tree=Tree1}};
-handle_cast({insert, Sys, Vsn, ID, Hash}, State) ->
-    {noreply, update_tree(Sys, ID, Hash, Vsn, State)};
+    Tree1 = merklet:delete(term_to_binary({Sys, ID}), Tree),
+    {noreply, State#state{tree = Tree1}};
+handle_cast({done, _Sys, _Version}, State) ->
+    {noreply, State};
+handle_cast({insert, Sys, _Vsn, ID, Hash}, State) ->
+    {noreply, update_tree(Sys, ID, Hash, State)};
 handle_cast(_Msg, State) ->
     {noreply, State}.
 
@@ -136,7 +178,7 @@ handle_cast(_Msg, State) ->
 %%                                   {stop, Reason, State}
 %% @end
 %%--------------------------------------------------------------------
-handle_info(timeout, State = #state{version = Vsn}) ->
+handle_info(update_tree, State = #state{version = Vsn}) ->
     Vsn1 = Vsn + 1,
     case snarl_user:list() of
         {ok, Us} ->
@@ -162,7 +204,7 @@ handle_info(timeout, State = #state{version = Vsn}) ->
         _ ->
             ok
     end,
-    {noreply, State#state{version = Vsn1}};
+    {noreply, State#state{version = Vsn1, last_update = erlang:system_time()}};
 
 handle_info(_Info, State) ->
     {noreply, State}.
@@ -195,6 +237,6 @@ code_change(_OldVsn, State, _Extra) ->
 %%%===================================================================
 %%% Internal functions
 %%%===================================================================
-update_tree(Sys, ID, H, Vsn, State = #state{tree=Tree}) ->
-    Tree1 = orddict:store({Sys, ID}, {Vsn, H}, Tree),
+update_tree(Sys, ID, H, State = #state{tree=Tree}) ->
+    Tree1 = merklet:insert({term_to_binary({Sys, ID}), H}, Tree),
     State#state{tree=Tree1}.

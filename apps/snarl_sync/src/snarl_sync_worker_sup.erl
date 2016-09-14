@@ -6,12 +6,12 @@
 %%% @end
 %%% Created : 30 Dec 2013 by Heinz Nikolaus Gies <heinz@licenser.net>
 %%%-------------------------------------------------------------------
--module(snarl_sync_exchange_sup).
+-module(snarl_sync_worker_sup).
 
 -behaviour(supervisor).
 
 %% API
--export([start_child/5, start_link/0]).
+-export([start_child/2, start_link/0]).
 
 -ignore_xref([start_link/0]).
 
@@ -24,8 +24,8 @@
 %%% API functions
 %%%===================================================================
 
-start_child(IP, Port, Diff, Get, Push) ->
-    supervisor:start_child(?SERVER, [IP, Port, Diff, Get, Push]).
+start_child(IP, Port) ->
+    supervisor:start_child(?SERVER, [IP, Port]).
 
 %%--------------------------------------------------------------------
 %% @doc
@@ -55,9 +55,8 @@ start_link() ->
 %% @end
 %%--------------------------------------------------------------------
 init([]) ->
-    Element = {snarl_sync_exchange_fsm,
-               {snarl_sync_exchange_fsm, start_link, []},
-               transient, infinity, worker, [snarl_sync_exchange_fsm]},
+    Element = {snarl_sync, {snarl_sync, start_link, []},
+               transient, infinity, worker, [snarl_sync]},
     Children = [Element],
     RestartStrategy = {simple_one_for_one, 5, 10},
     {ok, {RestartStrategy, Children}}.

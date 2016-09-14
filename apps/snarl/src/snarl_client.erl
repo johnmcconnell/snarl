@@ -8,6 +8,7 @@
 -export([
          sync_repair/3,
          list/0, list/1, list/3, list/4, list_/1,
+         sync_key/1,
          auth/3,
          name/3,
          type/3,
@@ -57,6 +58,9 @@ wipe(Realm, UUID) ->
 
 sync_repair(Realm, UUID, Obj) ->
     do_write(Realm, UUID, sync_repair, Obj).
+
+sync_key(B) when is_binary(B) ->
+    B.
 
 -spec auth(Realm::binary(), Client::binary(), Secret::binary()) ->
                   not_found |

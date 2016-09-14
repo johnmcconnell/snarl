@@ -1,4 +1,4 @@
-VERSION=0.8.2p2
+VERSION=0.8.3
 COMPONENT_INTERNAL=snarl
 COMPONENT=fifo-snarl
 #DEPS="erlang>=16.1.2" "coreutils>=8.22nb1" "sudo>=1.7.10p9"

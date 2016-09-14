@@ -54,8 +54,12 @@
 master() ->
     ?MASTER.
 
-hash_object(Key, Obj) ->
-    snarl_vnode:hash_object(Key, Obj).
+hash_object({Type, Key}, Obj) ->
+    TK = term_to_binary({Type, Key}),
+    hash_object(TK, Obj);
+
+hash_object(TK, Obj) when is_binary(TK) ->
+    snarl_vnode:hash_object(TK, Obj).
 
 aae_repair(Realm, Key) ->
     lager:debug("AAE Repair: ~p", [Key]),

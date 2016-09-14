@@ -55,6 +55,7 @@
 
 -record(state, {
           partition,
+          enabled = false,
           node = node(),
           dbs = #{},
           db_path,
@@ -173,6 +174,7 @@ init([Partition]) ->
                          undefined ->
                              5
                      end,
+    Enabled = application:get_env(snarl, accounting, false),
     {ok, DBPath} = application:get_env(fifo_db, db_path),
     FoldWorkerPool = {pool, snarl_worker, WorkerPoolSize, []},
     HT = riak_core_aae_vnode:maybe_create_hashtrees(
@@ -183,6 +185,7 @@ init([Partition]) ->
         partition = Partition,
         db_path = DBPath,
         hashtrees = HT,
+        enabled = Enabled,
         sync_tree = snarl_sync_tree:get_tree(snarl_accounting)
        },
      [FoldWorkerPool]}.
@@ -199,9 +202,10 @@ insert(Action, Realm, OrgID, Resource, Timestamp, Metadata, State) ->
     State1 = insert1(Action, Realm, OrgID, Resource, Timestamp, Metadata,
                      State),
     {Res, State2} = for_resource(Realm, OrgID, Resource, State1),
-    Hash = hash_object({Realm, OrgID, Resource}, Res),
+    Hash = hash_object({Realm, {OrgID, Resource}}, Res),
+    Key = snarl_sync_element:sync_key(snarl_accounting, {OrgID, Resource}),
     snarl_sync_tree:update(State#state.sync_tree, snarl_accounting,
-                           {Realm, {OrgID, Resource}}, Res),
+                           {Realm, Key}, Res),
     riak_core_aae_vnode:update_hashtree(
       Realm, term_to_binary({OrgID, Resource}), Hash, State#state.hashtrees),
     State2.
@@ -224,6 +228,10 @@ insert1(destroy, Relam, OrgID, Resource, Timestamp, Metadata, State) ->
                "(?1, ?2, ?3)",
                [Resource, Timestamp, term_to_binary(Metadata)], DB),
     State1.
+
+handle_command({_, {ReqID, _}, _, _, _, _, _},
+               _Sender, State = #state{enabled = false}) ->
+    {reply, {ok, ReqID}, State};
 
 handle_command({create, {ReqID, _}, Relam, OrgID, Resource, Timestamp,
                 Metadata}, _Sender, State) ->
@@ -263,6 +271,11 @@ handle_command({repair, Realm, OrgID, Resource, Entries}, _Sender, State) ->
                          end, State, Entries),
     {noreply, State1};
 
+handle_command({get, ReqID, _, _}, _Sender, State = #state{enabled = false}) ->
+    Res = [],
+    NodeIdx = {State#state.partition, State#state.node},
+    {reply, {ok, ReqID, NodeIdx, Res}, State};
+
 handle_command({get, ReqID, Realm, OrgID}, _Sender, State) ->
     {DB, State1} = get_db(Realm, OrgID, State),
     ResC = [ {T, create, E, binary_to_term(M)} ||
@@ -274,6 +287,12 @@ handle_command({get, ReqID, Realm, OrgID}, _Sender, State) ->
     Res = ResC ++ ResU ++ ResD,
     NodeIdx = {State#state.partition, State#state.node},
     {reply, {ok, ReqID, NodeIdx, Res}, State1};
+
+handle_command({get, ReqID, _, _, _}, _Sender,
+               State = #state{enabled = false}) ->
+    Res = [],
+    NodeIdx = {State#state.partition, State#state.node},
+    {reply, {ok, ReqID, NodeIdx, Res}, State};
 
 handle_command({get, ReqID, Realm, OrgID, Resource}, _Sender, State) ->
     {Res, State1} = for_resource(Realm, OrgID, Resource, State),
@@ -316,11 +335,17 @@ handle_command({rehash, {Realm, {OrgID, Resource}}}, _,
               [{object, {Realm, OrgRes}}], HT),
             {noreply, State1};
         {Res, State1} ->
-            Hash = hash_object({Realm, OrgID, Resource}, Res),
+            Hash = hash_object({Realm, {OrgID, Resource}}, Res),
             riak_core_aae_vnode:update_hashtree(
               Realm, OrgRes, Hash, HT),
             {noreply, State1}
     end;
+
+handle_command({get, ReqID, _, _, _, _}, _Sender,
+               State = #state{enabled = false}) ->
+    Res = [],
+    NodeIdx = {State#state.partition, State#state.node},
+    {reply, {ok, ReqID, NodeIdx, Res}, State};
 
 handle_command({get, ReqID, Realm, OrgID, Start, Stop}, _Sender, State) ->
     {DB, State1} = get_db(Realm, OrgID, State),
@@ -408,12 +433,14 @@ handle_org(RealmPath, Fun, Realm, Org, Acc) ->
             OrgB = list_to_binary(Org),
             {{ResOut, LOut}, AccOut} =
                 lists:foldl(fun({Res, T, M, A}, {{Res, L}, AccRes}) ->
-                                    {{Res, [{T, a2a(A), M} | L]}, AccRes};
+                                    MB = binary_to_term(M),
+                                    {{Res, [{T, a2a(A), MB} | L]}, AccRes};
                                ({Res, T, M, A}, {{ResOut, LOut}, AccRes}) ->
                                     AccRes1 = Fun({RealmB,
                                                    {OrgB, ResOut}},
                                                   LOut, AccRes),
-                                    {{Res, [{T, a2a(A), M}]}, AccRes1}
+                                    MB = binary_to_term(M),
+                                    {{Res, [{T, a2a(A), MB}]}, AccRes1}
                             end, {In, Acc}, Es),
             Fun({RealmB, {OrgB, ResOut}}, LOut, AccOut)
     end.
@@ -510,6 +537,37 @@ handle_coverage(list, _KeySpaces, Sender,
                  end || Realm <- Realms],
                 riak_core_vnode:reply(Sender, {done, {P, node()}})
         end,
+    {async, AsyncWork, Sender, State#state{dbs = #{}}};
+
+handle_coverage(repair_metadata, _KeySpaces, Sender,
+                State=#state{dbs = DBs, partition = P}) ->
+    lager:debug("[accounting:metadata_repair:~p] started.", [P]),
+    [esqlite3:close(DB) || DB <- maps:values(DBs)],
+    BasePath = base_path(State),
+    AsyncWork =
+        fun() ->
+                Realms = case file:list_dir(BasePath) of
+                             {ok, RealmsX} ->
+                                 RealmsX;
+                             _ ->
+                                 []
+                         end,
+                [begin
+                     RealmPath = filename:join([BasePath, Realm]),
+                     case file:list_dir(RealmPath) of
+                         {ok, Orgs} ->
+                             [repair_metadata(
+                                Sender,
+                                RealmPath,
+                                Realm,
+                                Org) || Org <- Orgs],
+                             ok;
+                         _ ->
+                             ok
+                     end
+                 end || Realm <- Realms],
+                riak_core_vnode:reply(Sender, {done, {P, node()}})
+        end,
     {async, AsyncWork, Sender, State#state{dbs = #{}}}.
 
 handle_list(Sender, RealmPath, Realm, Org) ->
@@ -521,6 +579,44 @@ handle_list(Sender, RealmPath, Realm, Org) ->
     riak_core_vnode:reply(Sender, {partial,
                                    list_to_binary(Realm),
                                    list_to_binary(Org), UUIDs}).
+
+
+repair_metadata(Sender, RealmPath, Realm, Org) ->
+    OrgPath = filename:join([RealmPath, Org]),
+    {ok, C} = esqlite3:open(OrgPath),
+    repair_metadata(Sender, Realm, Org, C, "create"),
+    repair_metadata(Sender, Realm, Org, C, "update"),
+    repair_metadata(Sender, Realm, Org, C, "destroy"),
+    esqlite3:close(C).
+
+repair_metadata(Sender, Realm, Org, C, Table) ->
+    Fixed = [{Element, Time, term_to_binary(fix_meta(Meta)), Meta} ||
+                {Element, Time, Meta} <-
+                    esqlite3:q("SELECT * FROM `" ++ Table ++ "`", C)],
+    Different = [{E, T, M} || {E, T, M, M1} <- Fixed, M /= M1],
+    lager:debug("[accounting:metadata_repair] ~s/~s has ~p items to repair",
+                [Org, Table, length(Different)]),
+    Result = case [esqlite3:q("UPDATE `" ++ Table ++ "` SET metadata = ?1 "
+                              "WHERE uuid = ?2 AND time = ?3", [M, E, T], C) ||
+                      {E, T, M} <- Different] of
+                 [] -> [{<<(list_to_binary(Table))/binary, ": ok">>}];
+                 _ ->  [{<<(list_to_binary(Table))/binary, ": fixed">>}]
+             end,
+    riak_core_vnode:reply(Sender, {partial,
+                                   list_to_binary(Realm),
+                                   list_to_binary(Org),
+                                   Result}).
+
+
+fix_meta(M) when is_binary(M) ->
+    try
+        fix_meta(binary_to_term(M))
+    catch
+        _:_ ->
+            M
+    end;
+fix_meta(M) ->
+    M.
 
 handle_exit(_Pid, _Reason, State) ->
     {noreply, State}.
@@ -641,4 +737,3 @@ base_path(State) ->
 
 base_path(#state{partition = Partition, db_path = Path}, Addition) ->
     filename:join([Path, integer_to_list(Partition), "accounting"] ++ Addition).
-

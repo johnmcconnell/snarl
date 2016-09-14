@@ -5,7 +5,7 @@
 -behavior(gen_fsm).
 
 -include("snarl.hrl").
--include("snarl_dtrace.hrl").
+-include_lib("snarl_dtrace/include/snarl_dtrace.hrl").
 
 %% API
 -export([start_link/7, start/3, start/4, start/5]).

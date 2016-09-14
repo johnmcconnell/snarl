@@ -55,11 +55,27 @@ start_link() ->
 %% @end
 %%--------------------------------------------------------------------
 init([]) ->
-    Element = {snarl_sync, {snarl_sync, start_link, []},
-               transient, infinity, worker, [snarl_sync]},
-    Children = [Element],
-    RestartStrategy = {simple_one_for_one, 5, 10},
-    {ok, {RestartStrategy, Children}}.
+    Services =
+        case snarl_sync:enabled() of
+            true ->
+                [{snarl_sync_worker_sup,
+                  {snarl_sync_worker_sup, start_link, []},
+                  permanent, 5000, supervisor, []},
+                 {snarl_sync_read_sup, {snarl_sync_read_sup, start_link, []},
+                  permanent, 5000, supervisor, []},
+                 {snarl_sync_exchange_sup,
+                  {snarl_sync_exchange_sup, start_link, []},
+                  permanent, 5000, supervisor, []},
+                 {snarl_sync_tree, {snarl_sync_tree, start_link, []},
+                  permanent, 5000, worker, []}];
+            _ ->
+                []
+        end,
+
+    {ok,
+     {{one_for_one, 5, 10},
+      Services
+     }}.
 
 %%%===================================================================
 %%% Internal functions
