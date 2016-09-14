@@ -55,6 +55,7 @@
 
 -record(state, {
           partition,
+          enabled = false,
           node = node(),
           dbs = #{},
           db_path,
@@ -173,6 +174,7 @@ init([Partition]) ->
                          undefined ->
                              5
                      end,
+    Enabled = application:get_env(snarl, accounting, false),
     {ok, DBPath} = application:get_env(fifo_db, db_path),
     FoldWorkerPool = {pool, snarl_worker, WorkerPoolSize, []},
     HT = riak_core_aae_vnode:maybe_create_hashtrees(
@@ -183,6 +185,7 @@ init([Partition]) ->
         partition = Partition,
         db_path = DBPath,
         hashtrees = HT,
+        enabled = Enabled,
         sync_tree = snarl_sync_tree:get_tree(snarl_accounting)
        },
      [FoldWorkerPool]}.
@@ -226,6 +229,10 @@ insert1(destroy, Relam, OrgID, Resource, Timestamp, Metadata, State) ->
                [Resource, Timestamp, term_to_binary(Metadata)], DB),
     State1.
 
+handle_command({_, {ReqID, _}, _, _, _, _, _},
+               _Sender, State = #state{enabled = false}) ->
+    {reply, {ok, ReqID}, State};
+
 handle_command({create, {ReqID, _}, Relam, OrgID, Resource, Timestamp,
                 Metadata}, _Sender, State) ->
     State1 = insert(create, Relam, OrgID, Resource, Timestamp, Metadata, State),
@@ -264,6 +271,11 @@ handle_command({repair, Realm, OrgID, Resource, Entries}, _Sender, State) ->
                          end, State, Entries),
     {noreply, State1};
 
+handle_command({get, ReqID, _, _}, _Sender, State = #state{enabled = false}) ->
+    Res = [],
+    NodeIdx = {State#state.partition, State#state.node},
+    {reply, {ok, ReqID, NodeIdx, Res}, State};
+
 handle_command({get, ReqID, Realm, OrgID}, _Sender, State) ->
     {DB, State1} = get_db(Realm, OrgID, State),
     ResC = [ {T, create, E, binary_to_term(M)} ||
@@ -275,6 +287,12 @@ handle_command({get, ReqID, Realm, OrgID}, _Sender, State) ->
     Res = ResC ++ ResU ++ ResD,
     NodeIdx = {State#state.partition, State#state.node},
     {reply, {ok, ReqID, NodeIdx, Res}, State1};
+
+handle_command({get, ReqID, _, _, _}, _Sender,
+               State = #state{enabled = false}) ->
+    Res = [],
+    NodeIdx = {State#state.partition, State#state.node},
+    {reply, {ok, ReqID, NodeIdx, Res}, State};
 
 handle_command({get, ReqID, Realm, OrgID, Resource}, _Sender, State) ->
     {Res, State1} = for_resource(Realm, OrgID, Resource, State),
@@ -322,6 +340,12 @@ handle_command({rehash, {Realm, {OrgID, Resource}}}, _,
               Realm, OrgRes, Hash, HT),
             {noreply, State1}
     end;
+
+handle_command({get, ReqID, _, _, _, _}, _Sender,
+               State = #state{enabled = false}) ->
+    Res = [],
+    NodeIdx = {State#state.partition, State#state.node},
+    {reply, {ok, ReqID, NodeIdx, Res}, State};
 
 handle_command({get, ReqID, Realm, OrgID, Start, Stop}, _Sender, State) ->
     {DB, State1} = get_db(Realm, OrgID, State),
@@ -713,4 +737,3 @@ base_path(State) ->
 
 base_path(#state{partition = Partition, db_path = Path}, Addition) ->
     filename:join([Path, integer_to_list(Partition), "accounting"] ++ Addition).
-

@@ -18,14 +18,14 @@
 ├─ fifo_utils─0.1.22
 │  └─ uuid─1.5.1
 │     └─ quickrand─1.5.2
-├─ folsom_ddb─0.1.29
-│  ├─ ddb_client─0.1.29
-│  │  ├─ dproto─0.1.22
+├─ folsom_ddb─0.1.30
+│  ├─ ddb_client─0.1.30
+│  │  ├─ dproto─0.1.23
 │  │  ├─ mmath─0.2.9
 │  │  └─ snappy─1.1.1
 │  ├─ dqe_idx─0.1.18
 │  ├─ dqe_idx_ddb─0.1.14
-│  │  └─ ddb_connection─0.1.11
+│  │  └─ ddb_connection─0.1.12
 │  ├─ dqe_idx_pg─0.2.12
 │  │  └─ pgapp─0.0.1
 │  │     └─ epgsql─3.1.1
