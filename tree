@@ -17,22 +17,22 @@
 ├─ fifo_spec─0.1.27
 ├─ fifo_utils─0.1.22
 │  └─ uuid─1.5.1
-│     └─ quickrand─1.5.2
+│     └─ quickrand─1.5.3
 ├─ folsom_ddb─0.1.30
 │  ├─ ddb_client─0.1.30
-│  │  ├─ dproto─0.1.23
+│  │  ├─ dproto─0.1.25
 │  │  ├─ mmath─0.2.9
 │  │  └─ snappy─1.1.1
 │  ├─ dqe_idx─0.1.18
 │  ├─ dqe_idx_ddb─0.1.14
-│  │  └─ ddb_connection─0.1.12
+│  │  └─ ddb_connection─0.1.14
 │  ├─ dqe_idx_pg─0.2.12
 │  │  └─ pgapp─0.0.1
 │  │     └─ epgsql─3.1.1
 │  └─ folsom─0.8.3
 │     └─ bear─0.8.3
 ├─ jsx─1.4.5
-├─ jsxd─0.1.10
+├─ jsxd─0.2.2
 ├─ libsnarlmatch─0.1.7
 ├─ mdns_server_lib─0.2.3
 │  ├─ mdns_server─0.2.0
@@ -60,7 +60,7 @@
 │  ├─ poolboy─0.8.1-p3
 │  ├─ riak_ensemble─2.2.0
 │  └─ riak_sysmon─2.1.2
-├─ snarl─0.8.3
+├─ snarl─0.9.0
 ├─ snarl_coverage─0.1.0
 ├─ snarl_dtrace─0.1.0
 ├─ snarl_oauth─0.1.0
