@@ -5,7 +5,7 @@
  {<<"blume">>,{pkg,<<"blume">>,<<"0.1.0">>},1},
  {<<"bugsnag">>,
   {git,"https://github.com/project-fifo/bugsnag-erlang.git",
-       {ref,"2e05018de9a6a54592b9976e531360c6a2098ac3"}},
+       {ref,"0665b40bd619c07b3a5c1431ae2f42b876771467"}},
   0},
  {<<"cf">>,{pkg,<<"cf">>,<<"0.2.1">>},2},
  {<<"chash">>,{pkg,<<"chash">>,<<"0.1.1">>},1},
