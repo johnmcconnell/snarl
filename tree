@@ -10,7 +10,7 @@
 ├─ fifo_db─0.2.3
 │  ├─ eleveldb─2.2.19
 │  └─ erocksdb─0.4.1
-├─ fifo_dt─0.1.70
+├─ fifo_dt─0.2.0
 │  └─ riak_dt─2.1.1
 ├─ fifo_lager─0.1.4
 │  ├─ lager_graylog─0.1.1
