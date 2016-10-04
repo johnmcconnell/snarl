@@ -86,7 +86,7 @@ remove_trigger(Realm, Org, Trigger) ->
 trigger(Realm, Org, Event, Payload) ->
     case ?MODULE:get(Realm, Org) of
         {ok, OrgObj} ->
-            Triggers = [T || {_, T} <- ft_org:triggers(OrgObj)],
+            Triggers = maps:values(ft_org:triggers(OrgObj)),
             Executed = do_events(Realm, Triggers, Event, Payload, 0),
             {ok, Executed};
         R  ->
@@ -96,7 +96,7 @@ trigger(Realm, Org, Event, Payload) ->
 reverse_trigger(Realm, Org, Event, Payload) ->
     case ?MODULE:get(Realm, Org) of
         {ok, OrgObj} ->
-            Triggers = [T || {_, T} <- ft_org:triggers(OrgObj)],
+            Triggers = maps:values(ft_org:triggers(OrgObj)),
             Executed = reverse_events(Realm, Triggers, Event, Payload, 0),
             {ok, Executed};
         R  ->
