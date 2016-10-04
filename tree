@@ -10,13 +10,13 @@
 ├─ fifo_db─0.2.3
 │  ├─ eleveldb─2.2.19
 │  └─ erocksdb─0.4.1
-├─ fifo_dt─0.2.1
+├─ fifo_dt─0.2.3
 │  └─ riak_dt─2.1.1
 ├─ fifo_lager─0.1.4
 │  ├─ lager_graylog─0.1.1
 │  └─ lager_logstash_backend─0.1.1
 ├─ fifo_spec─0.1.28
-├─ fifo_utils─0.1.23
+├─ fifo_utils─0.1.24
 │  └─ uuid─1.5.3
 │     └─ quickrand─1.5.3
 ├─ folsom_ddb─0.1.30
