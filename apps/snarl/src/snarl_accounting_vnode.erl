@@ -391,10 +391,14 @@ handle_command(?FOLD_REQ{foldfun=Fun, acc0=Acc0}, Sender,
                                       case file:list_dir(RealmPath) of
                                           {ok, Orgs} when length(Orgs) > 0 ->
                                               lists:foldl(
-                                                fun (Org, AccO) ->
+                                                fun (Org, AccO)
+                                                    %% properly formated uuid
+                                                      when length(Org) == 36 ->
                                                         handle_org(RealmPath,
                                                                    Fun, Realm,
-                                                                   Org, AccO)
+                                                                   Org, AccO);
+                                                    (_Bad, AccO) ->
+                                                        AccO
                                                 end, AccR, Orgs);
                                           _ ->
                                               AccR
