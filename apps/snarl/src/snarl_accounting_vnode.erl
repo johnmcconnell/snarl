@@ -57,7 +57,6 @@
           partition,
           enabled = false,
           node = node(),
-          dbs = #{},
           db_path,
           hashtrees,
           sync_tree
@@ -199,35 +198,40 @@ init([Partition]) ->
              state()) ->
                     state().
 insert(Action, Realm, OrgID, Resource, Timestamp, Metadata, State) ->
-    State1 = insert1(Action, Realm, OrgID, Resource, Timestamp, Metadata,
-                     State),
-    {Res, State2} = for_resource(Realm, OrgID, Resource, State1),
+    insert1(Action, Realm, OrgID, Resource, Timestamp, Metadata, State),
+    Res = for_resource(Realm, OrgID, Resource, State),
     Hash = hash_object({Realm, {OrgID, Resource}}, Res),
     Key = snarl_sync_element:sync_key(snarl_accounting, {OrgID, Resource}),
     snarl_sync_tree:update(State#state.sync_tree, snarl_accounting,
                            {Realm, Key}, Res),
     riak_core_aae_vnode:update_hashtree(
       Realm, term_to_binary({OrgID, Resource}), Hash, State#state.hashtrees),
-    State2.
+    State.
 
 insert1(create, Relam, OrgID, Resource, Timestamp, Metadata, State) ->
-    {DB, State1} = get_db(Relam, OrgID, State),
-    esqlite3:q("INSERT INTO `create` (uuid, time, metadata) VALUES "
-               "(?1, ?2, ?3)",
-               [Resource, Timestamp, term_to_binary(Metadata)], DB),
-    State1;
+    with_db(
+      Relam, OrgID, State,
+      fun(DB) ->
+              esqlite3:q("INSERT INTO `create` (uuid, time, metadata) VALUES "
+                         "(?1, ?2, ?3)",
+                         [Resource, Timestamp, term_to_binary(Metadata)], DB)
+      end);
 insert1(update, Relam, OrgID, Resource, Timestamp, Metadata, State) ->
-    {DB, State1} = get_db(Relam, OrgID, State),
-    esqlite3:q("INSERT INTO `update` (uuid, time, metadata) VALUES "
-               "(?1, ?2, ?3)",
-               [Resource, Timestamp, term_to_binary(Metadata)], DB),
-    State1;
+    with_db(
+      Relam, OrgID, State,
+      fun(DB) ->
+              esqlite3:q("INSERT INTO `update` (uuid, time, metadata) VALUES "
+                         "(?1, ?2, ?3)",
+                         [Resource, Timestamp, term_to_binary(Metadata)], DB)
+      end);
 insert1(destroy, Relam, OrgID, Resource, Timestamp, Metadata, State) ->
-    {DB, State1} = get_db(Relam, OrgID, State),
-    esqlite3:q("INSERT INTO `destroy` (uuid, time, metadata) VALUES "
-               "(?1, ?2, ?3)",
-               [Resource, Timestamp, term_to_binary(Metadata)], DB),
-    State1.
+    with_db(
+      Relam, OrgID, State,
+      fun(DB) ->
+              esqlite3:q("INSERT INTO `destroy` (uuid, time, metadata) VALUES "
+                         "(?1, ?2, ?3)",
+                         [Resource, Timestamp, term_to_binary(Metadata)], DB)
+      end).
 
 handle_command({_, {ReqID, _}, _, _, _, _, _},
                _Sender, State = #state{enabled = false}) ->
@@ -277,16 +281,22 @@ handle_command({get, ReqID, _, _}, _Sender, State = #state{enabled = false}) ->
     {reply, {ok, ReqID, NodeIdx, Res}, State};
 
 handle_command({get, ReqID, Realm, OrgID}, _Sender, State) ->
-    {DB, State1} = get_db(Realm, OrgID, State),
-    ResC = [ {T, create, E, binary_to_term(M)} ||
-               {E, T, M} <- esqlite3:q("SELECT * FROM `create`", DB)],
-    ResU = [ {T, update, E, binary_to_term(M)} ||
-               {E, T, M} <- esqlite3:q("SELECT * FROM `update`", DB)],
-    ResD = [ {T, destroy, E, binary_to_term(M)} ||
-               {E, T, M} <- esqlite3:q("SELECT * FROM `destroy`", DB)],
-    Res = ResC ++ ResU ++ ResD,
-    NodeIdx = {State#state.partition, State#state.node},
-    {reply, {ok, ReqID, NodeIdx, Res}, State1};
+    with_db(
+      Realm, OrgID, State,
+      fun(DB) ->
+              ResC =
+                  [{T, create, E, binary_to_term(M)} ||
+                      {E, T, M} <- esqlite3:q("SELECT * FROM `create`", DB)],
+              ResU =
+                  [{T, update, E, binary_to_term(M)} ||
+                      {E, T, M} <- esqlite3:q("SELECT * FROM `update`", DB)],
+              ResD =
+                  [{T, destroy, E, binary_to_term(M)} ||
+                      {E, T, M} <- esqlite3:q("SELECT * FROM `destroy`", DB)],
+              Res = ResC ++ ResU ++ ResD,
+              NodeIdx = {State#state.partition, State#state.node},
+              {reply, {ok, ReqID, NodeIdx, Res}, State}
+      end);
 
 handle_command({get, ReqID, _, _, _}, _Sender,
                State = #state{enabled = false}) ->
@@ -295,9 +305,9 @@ handle_command({get, ReqID, _, _, _}, _Sender,
     {reply, {ok, ReqID, NodeIdx, Res}, State};
 
 handle_command({get, ReqID, Realm, OrgID, Resource}, _Sender, State) ->
-    {Res, State1} = for_resource(Realm, OrgID, Resource, State),
+    Res = for_resource(Realm, OrgID, Resource, State),
     NodeIdx = {State#state.partition, State#state.node},
-    {reply, {ok, ReqID, NodeIdx, Res}, State1};
+    {reply, {ok, ReqID, NodeIdx, Res}, State};
 
 handle_command({hashtree_pid, Node}, _, State) ->
     %% Handle riak_core request forwarding during ownership handoff.
@@ -329,17 +339,16 @@ handle_command({rehash, {Realm, {OrgID, Resource}}}, _,
                                                 is_binary(Resource) ->
     OrgRes = term_to_binary({OrgID, Resource}),
     case for_resource(Realm, OrgID, Resource, State) of
-        {[], State1} ->
+        [] ->
             %% Make sure hashtree isn't tracking deleted data
             riak_core_index_hashtree:delete(
-              [{object, {Realm, OrgRes}}], HT),
-            {noreply, State1};
-        {Res, State1} ->
+              [{object, {Realm, OrgRes}}], HT);
+        Res ->
             Hash = hash_object({Realm, {OrgID, Resource}}, Res),
             riak_core_aae_vnode:update_hashtree(
-              Realm, OrgRes, Hash, HT),
-            {noreply, State1}
-    end;
+              Realm, OrgRes, Hash, HT)
+    end,
+    {noreply, State};
 
 handle_command({get, ReqID, _, _, _, _}, _Sender,
                State = #state{enabled = false}) ->
@@ -348,7 +357,6 @@ handle_command({get, ReqID, _, _, _, _}, _Sender,
     {reply, {ok, ReqID, NodeIdx, Res}, State};
 
 handle_command({get, ReqID, Realm, OrgID, Start, Stop}, _Sender, State) ->
-    {DB, State1} = get_db(Realm, OrgID, State),
     Q = "SELECT `create`.uuid AS uuid, `create`.time AS time,"
         "       `create`.metadata AS metadata, 'create' AS action"
         "  FROM `create`"
@@ -371,14 +379,17 @@ handle_command({get, ReqID, Realm, OrgID, Start, Stop}, _Sender, State) ->
         "      LEFT JOIN `destroy` ON `create`.uuid = `destroy`.uuid"
         "      WHERE `create`.time < ?2"
         "        AND (`destroy`.time IS NULL OR `destroy`.time > ?1));",
-    Res = [{T, a2a(A), E, binary_to_term(M)} ||
-              {E, T, M, A} <- esqlite3:q(Q, [Start, Stop], DB)],
-    NodeIdx = {State#state.partition, State#state.node},
-    {reply, {ok, ReqID, NodeIdx, lists:sort(Res)}, State1};
+    with_db(
+      Realm, OrgID, State,
+      fun(DB) ->
+              Res = [{T, a2a(A), E, binary_to_term(M)} ||
+                        {E, T, M, A} <- esqlite3:q(Q, [Start, Stop], DB)],
+              NodeIdx = {State#state.partition, State#state.node},
+              {reply, {ok, ReqID, NodeIdx, lists:sort(Res)}, State}
+      end);
 
 handle_command(?FOLD_REQ{foldfun=Fun, acc0=Acc0}, Sender,
-               State=#state{partition = P, db_path = Path, dbs = DBs}) ->
-    [esqlite3:close(DB) || DB <- maps:values(DBs)],
+               State=#state{partition = P, db_path = Path}) ->
     BasePath = filename:join([Path, integer_to_list(P), "accounting"]),
     AsyncWork =
         fun() ->
@@ -409,44 +420,48 @@ handle_command(?FOLD_REQ{foldfun=Fun, acc0=Acc0}, Sender,
                         riak_core_vnode:reply(Sender, Acc0)
                 end
         end,
-    {async, AsyncWork, Sender, State#state{dbs = #{}}}.
+    {async, AsyncWork, Sender, State}.
 
 handle_org(RealmPath, Fun, Realm, Org, Acc) ->
     OrgPath = filename:join([RealmPath, Org]),
     {ok, C} = esqlite3:open(OrgPath),
-    Q = "SELECT * FROM ("
-        "SELECT `create`.uuid AS uuid, `create`.time AS time,"
-        "       `create`.metadata AS metadata, 'create' AS action"
-        "  FROM `create`"
-        " UNION ALL "
-        "SELECT `destroy`.uuid AS uuid, `destroy`.time AS time,"
-        "       `destroy`.metadata AS metadata, 'destroy' AS action"
-        "  FROM `destroy`"
-        " UNION ALL "
-        "SELECT `update`.uuid AS uuid, `update`.time AS time,"
-        "       `update`.metadata AS metadata, 'update' AS action"
-        "  FROM `update`) ORDER BY uuid",
-    case esqlite3:q(Q, C) of
-        [] ->
-            esqlite3:close(C),
-            Acc;
-        [{Res0, T0, M0, A0} | Es] ->
-            esqlite3:close(C),
-            In = {Res0, [{T0, a2a(A0), M0}]},
-            RealmB = list_to_binary(Realm),
-            OrgB = list_to_binary(Org),
-            {{ResOut, LOut}, AccOut} =
-                lists:foldl(fun({Res, T, M, A}, {{Res, L}, AccRes}) ->
-                                    MB = binary_to_term(M),
-                                    {{Res, [{T, a2a(A), MB} | L]}, AccRes};
-                               ({Res, T, M, A}, {{ResOut, LOut}, AccRes}) ->
-                                    AccRes1 = Fun({RealmB,
-                                                   {OrgB, ResOut}},
-                                                  LOut, AccRes),
-                                    MB = binary_to_term(M),
-                                    {{Res, [{T, a2a(A), MB}]}, AccRes1}
-                            end, {In, Acc}, Es),
-            Fun({RealmB, {OrgB, ResOut}}, LOut, AccOut)
+    try
+        Q = "SELECT * FROM ("
+            "SELECT `create`.uuid AS uuid, `create`.time AS time,"
+            "       `create`.metadata AS metadata, 'create' AS action"
+            "  FROM `create`"
+            " UNION ALL "
+            "SELECT `destroy`.uuid AS uuid, `destroy`.time AS time,"
+            "       `destroy`.metadata AS metadata, 'destroy' AS action"
+            "  FROM `destroy`"
+            " UNION ALL "
+            "SELECT `update`.uuid AS uuid, `update`.time AS time,"
+            "       `update`.metadata AS metadata, 'update' AS action"
+            "  FROM `update`) ORDER BY uuid",
+        case esqlite3:q(Q, C) of
+            [] ->
+                esqlite3:close(C),
+                Acc;
+            [{Res0, T0, M0, A0} | Es] ->
+
+                In = {Res0, [{T0, a2a(A0), M0}]},
+                RealmB = list_to_binary(Realm),
+                OrgB = list_to_binary(Org),
+                {{ResOut, LOut}, AccOut} =
+                    lists:foldl(fun({Res, T, M, A}, {{Res, L}, AccRes}) ->
+                                        MB = binary_to_term(M),
+                                        {{Res, [{T, a2a(A), MB} | L]}, AccRes};
+                                   ({Res, T, M, A}, {{ResOut, LOut}, AccRes}) ->
+                                        AccRes1 = Fun({RealmB,
+                                                       {OrgB, ResOut}},
+                                                      LOut, AccRes),
+                                        MB = binary_to_term(M),
+                                        {{Res, [{T, a2a(A), MB}]}, AccRes1}
+                                end, {In, Acc}, Es),
+                Fun({RealmB, {OrgB, ResOut}}, LOut, AccOut)
+        end
+    after
+        esqlite3:close(C)
     end.
 
 a2a(<<"create">>) -> create;
@@ -479,21 +494,28 @@ handoff_finished(_TargetNode, State) ->
 
 handle_handoff_data(Data, State) ->
     {{Realm, {Org, Resource}}, Entries} = binary_to_term(Data),
-    {DB, State1} = get_db(Realm, Org, State),
-    lists:map(fun ({Time, create, Meta}) ->
-                      esqlite3:q("INSERT INTO `create` (uuid, time, metadata) "
-                                 "VALUES (?1, ?2, ?3)",
-                                 [Resource, Time, term_to_binary(Meta)], DB);
-                  ({Time, update, Meta}) ->
-                      esqlite3:q("INSERT INTO `update` (uuid, time, metadata) "
-                                 "VALUES (?1, ?2, ?3)",
-                                 [Resource, Time, term_to_binary(Meta)], DB);
-                  ({Time, destroy, Meta}) ->
-                      esqlite3:q("INSERT INTO `destroy` (uuid, time, metadata) "
-                                 "VALUES (?1, ?2, ?3)",
-                                 [Resource, Time, term_to_binary(Meta)], DB)
-              end, Entries),
-    {reply, ok, State1}.
+    with_db(
+      Realm, Org, State,
+      fun(DB) ->
+              lists:map(
+                fun ({Time, create, Meta}) ->
+                        esqlite3:q("INSERT INTO `create` "
+                                   "(uuid, time, metadata) "
+                                   "VALUES (?1, ?2, ?3)",
+                                   [Resource, Time, term_to_binary(Meta)], DB);
+                    ({Time, update, Meta}) ->
+                        esqlite3:q("INSERT INTO `update` "
+                                   "(uuid, time, metadata) "
+                                   "VALUES (?1, ?2, ?3)",
+                                   [Resource, Time, term_to_binary(Meta)], DB);
+                    ({Time, destroy, Meta}) ->
+                        esqlite3:q("INSERT INTO `destroy` "
+                                   "(uuid, time, metadata) "
+                                   "VALUES (?1, ?2, ?3)",
+                                   [Resource, Time, term_to_binary(Meta)], DB)
+                end, Entries)
+      end),
+    {reply, ok, State}.
 
 encode_handoff_item(Org, Data) ->
     term_to_binary({Org, Data}).
@@ -507,15 +529,13 @@ is_empty(State) ->
             {true, State}
     end.
 
-delete(State = #state{dbs = DBs}) ->
-    [esqlite3:close(DB) || DB <- maps:values(DBs)],
+delete(State) ->
     BasePath = base_path(State),
     del_dir(BasePath),
-    {ok, State#state{dbs = #{}}}.
+    {ok, State}.
 
 handle_coverage(list, _KeySpaces, Sender,
-                State=#state{dbs = DBs, partition = P}) ->
-    [esqlite3:close(DB) || DB <- maps:values(DBs)],
+                State=#state{partition = P}) ->
     BasePath = base_path(State),
     AsyncWork =
         fun() ->
@@ -541,12 +561,11 @@ handle_coverage(list, _KeySpaces, Sender,
                  end || Realm <- Realms],
                 riak_core_vnode:reply(Sender, {done, {P, node()}})
         end,
-    {async, AsyncWork, Sender, State#state{dbs = #{}}};
+    {async, AsyncWork, Sender, State};
 
 handle_coverage(repair_metadata, _KeySpaces, Sender,
-                State=#state{dbs = DBs, partition = P}) ->
+                State=#state{partition = P}) ->
     lager:debug("[accounting:metadata_repair:~p] started.", [P]),
-    [esqlite3:close(DB) || DB <- maps:values(DBs)],
     BasePath = base_path(State),
     AsyncWork =
         fun() ->
@@ -572,26 +591,32 @@ handle_coverage(repair_metadata, _KeySpaces, Sender,
                  end || Realm <- Realms],
                 riak_core_vnode:reply(Sender, {done, {P, node()}})
         end,
-    {async, AsyncWork, Sender, State#state{dbs = #{}}}.
+    {async, AsyncWork, Sender, State}.
 
 handle_list(Sender, RealmPath, Realm, Org) ->
     OrgPath = filename:join([RealmPath, Org]),
     {ok, C} = esqlite3:open(OrgPath),
-    Q = "SELECT uuid FROM `create`",
-    UUIDs = esqlite3:q(Q, C),
-    esqlite3:close(C),
-    riak_core_vnode:reply(Sender, {partial,
-                                   list_to_binary(Realm),
-                                   list_to_binary(Org), UUIDs}).
+    try
+        Q = "SELECT uuid FROM `create`",
+        UUIDs = esqlite3:q(Q, C),
+        riak_core_vnode:reply(Sender, {partial,
+                                       list_to_binary(Realm),
+                                       list_to_binary(Org), UUIDs})
+    after
+        esqlite3:close(C)
+    end.
 
 
 repair_metadata(Sender, RealmPath, Realm, Org) ->
     OrgPath = filename:join([RealmPath, Org]),
     {ok, C} = esqlite3:open(OrgPath),
-    repair_metadata(Sender, Realm, Org, C, "create"),
-    repair_metadata(Sender, Realm, Org, C, "update"),
-    repair_metadata(Sender, Realm, Org, C, "destroy"),
-    esqlite3:close(C).
+    try
+        repair_metadata(Sender, Realm, Org, C, "create"),
+        repair_metadata(Sender, Realm, Org, C, "update"),
+        repair_metadata(Sender, Realm, Org, C, "destroy")
+    after
+        esqlite3:close(C)
+    end.
 
 repair_metadata(Sender, Realm, Org, C, Table) ->
     Fixed = [{Element, Time, term_to_binary(fix_meta(Meta)), Meta} ||
@@ -625,8 +650,7 @@ fix_meta(M) ->
 handle_exit(_Pid, _Reason, State) ->
     {noreply, State}.
 
-terminate(_Reason, #state{dbs = DBs}) ->
-    [esqlite3:close(DB) || DB <- maps:values(DBs)],
+terminate(_Reason, _) ->
     ok.
 
 %%% AAE
@@ -653,25 +677,36 @@ handle_info({'DOWN', _, _, _, _}, State) ->
 handle_info(_Msg, State) ->
     {ok, State}.
 
-get_db(Realm, Org, State = #state{partition = P, dbs = DBs, db_path = Path}) ->
-    Key = {Realm, Org},
-    case maps:find(Key, DBs) of
+with_db(Realm, Org, State, Fun) ->
+    case get_db(Realm, Org, State) of
         {ok, DB} ->
-            {DB, State};
-        error ->
-            Realms = binary_to_list(Realm),
-            Orgs = binary_to_list(Org),
-            BasePath = base_path(State, [Realms]),
-            file:make_dir(filename:join([Path])),
-            file:make_dir(filename:join([Path, integer_to_list(P)])),
-            file:make_dir(filename:join([Path, integer_to_list(P),
-                                         "accounting"])),
-            file:make_dir(BasePath),
-            DBFile = filename:join([BasePath, Orgs]),
-            {ok, DB} = esqlite3:open(DBFile),
-            init_db(DB),
-            DBs1 = maps:put(Key, DB, DBs),
-            {DB, State#state{dbs = DBs1}}
+            try
+                Fun(DB)
+            after
+                esqlite3:close(DB)
+            end;
+        E ->
+            E
+    end.
+
+get_db(Realm, Org, State = #state{partition = P, db_path = Path}) ->
+    Realms = binary_to_list(Realm),
+    Orgs = binary_to_list(Org),
+    BasePath = base_path(State, [Realms]),
+    file:make_dir(filename:join([Path])),
+    file:make_dir(filename:join([Path, integer_to_list(P)])),
+    file:make_dir(filename:join([Path, integer_to_list(P),
+                                 "accounting"])),
+    file:make_dir(BasePath),
+    DBFile = filename:join([BasePath, Orgs]),
+    {ok, DB} = esqlite3:open(DBFile),
+    try
+        init_db(DB),
+        {ok, DB}
+    catch
+        E:_ ->
+            esqlite3:close(DB),
+            {error, E}
     end.
 
 init_db(DB) ->
@@ -724,17 +759,23 @@ path_or_dir(Dir, FilesInDir) ->
                 end, {[], []}, FilesInDir).
 
 for_resource(Realm, OrgID, Resource, State) ->
-    {DB, State1} = get_db(Realm, OrgID, State),
-    ResC = [ {T, create, binary_to_term(M)} ||
-               {T, M} <- esqlite3:q("SELECT time, metadata FROM `create` "
-                                    "WHERE uuid=?", [Resource], DB)],
-    ResU = [ {T, update, binary_to_term(M)} ||
-               {T, M} <- esqlite3:q("SELECT time, metadata FROM `update` "
-                                    "WHERE uuid=?", [Resource], DB)],
-    ResD = [ {T, destroy, binary_to_term(M)} ||
-               {T, M} <- esqlite3:q("SELECT time, metadata FROM `destroy` "
-                                    "WHERE uuid=?", [Resource], DB)],
-    {ResC ++ ResU ++ ResD, State1}.
+    with_db(
+      Realm, OrgID, State,
+      fun(DB) ->
+              ResC = [{T, create, binary_to_term(M)} ||
+                         {T, M} <-
+                             esqlite3:q("SELECT time, metadata FROM `create` "
+                                        "WHERE uuid=?", [Resource], DB)],
+              ResU = [{T, update, binary_to_term(M)} ||
+                         {T, M} <-
+                             esqlite3:q("SELECT time, metadata FROM `update` "
+                                        "WHERE uuid=?", [Resource], DB)],
+              ResD = [{T, destroy, binary_to_term(M)} ||
+                         {T, M} <-
+                             esqlite3:q("SELECT time, metadata FROM `destroy` "
+                                        "WHERE uuid=?", [Resource], DB)],
+              ResC ++ ResU ++ ResD
+      end).
 
 base_path(State) ->
     base_path(State, []).
