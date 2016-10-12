@@ -52,6 +52,7 @@ enabled() ->
 %% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
+
 start(IP, Port) ->
     snarl_sync_worker_sup:start_child(IP, Port).
 
@@ -61,7 +62,7 @@ start_link(IP, Port) ->
     gen_server:start_link({local, N}, ?MODULE, [IP, Port], []).
 
 cast_all(Msg) ->
-    Cs = supervisor:which_children(snarl_sync_sup),
+    Cs = supervisor:which_children(snarl_sync_worker_sup),
     [gen_server:cast(P, Msg) || {_, P, _, _} <- Cs].
 
 sync_op(Node, VNode, System, Bucket, User, Op, Val) ->
