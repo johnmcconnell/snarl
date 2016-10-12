@@ -62,8 +62,13 @@ start_link(IP, Port) ->
     gen_server:start_link({local, N}, ?MODULE, [IP, Port], []).
 
 cast_all(Msg) ->
-    Cs = supervisor:which_children(snarl_sync_worker_sup),
-    [gen_server:cast(P, Msg) || {_, P, _, _} <- Cs].
+    case whereis(snarl_sync_worker_sup) of
+        undefined ->
+            [];
+        Sup ->
+            Cs = supervisor:which_children(Sup),
+            [gen_server:cast(P, Msg) || {_, P, _, _} <- Cs]
+    end.
 
 sync_op(Node, VNode, System, Bucket, User, Op, Val) ->
     cast_all({write, Node, VNode, System, Bucket, User, Op, Val}).
@@ -139,8 +144,8 @@ handle_cast(remote_sync, State) ->
     lager:warning("[sync] Remote sync started, skipping this sync tick"),
     {noreply, next_tick(State)};
 handle_cast({write, _Node, _VNode, _System, _Bucket, _User, _Op, _Val} = Act,
-            State = #state{socket=undefined}) ->
-    lager:debug("[sync] ~p", [Act]),
+            State = #state{ip = IP, socket = undefined}) ->
+    lager:warning("[sync:~s] Skipping ~p", [IP, Act]),
     {noreply, State};
 
 handle_cast({write, Node, VNode, System, Bucket, ID, Op, Val},
