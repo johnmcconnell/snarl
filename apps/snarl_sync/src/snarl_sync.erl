@@ -56,17 +56,22 @@ start(IP, Port) ->
     snarl_sync_worker_sup:start_child(IP, Port).
 
 start_link(IP, Port) ->
-    gen_server:start_link({local, ?SERVER}, ?MODULE, [IP, Port], []).
+    L = io_lib:format("snarl_sync@~s:~p", [IP, Port]),
+    N = list_to_atom(lists:flatten(L)),
+    gen_server:start_link({local, N}, ?MODULE, [IP, Port], []).
+
+cast_all(Msg) ->
+    Cs = supervisor:which_children(snarl_sync_sup),
+    [gen_server:cast(P, Msg) || {_, P, _, _} <- Cs].
 
 sync_op(Node, VNode, System, Bucket, User, Op, Val) ->
-    gen_server:abcast(?SERVER,
-                      {write, Node, VNode, System, Bucket, User, Op, Val}).
+    cast_all({write, Node, VNode, System, Bucket, User, Op, Val}).
 
 remote_sync_started() ->
-    gen_server:abcast(?SERVER, remote_sync).
+    cast_all(remote_sync).
 
 sync() ->
-    gen_server:abcast(?SERVER, sync).
+    cast_all(sync).
 
 %%%===================================================================
 %%% gen_server callbacks
