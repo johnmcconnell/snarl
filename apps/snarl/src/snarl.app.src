@@ -1,7 +1,7 @@
 %% -*- erlang -*-
 {application, snarl,
  [{description, "AAA Server"},
-  {vsn, "0.8.3p2"},
+  {vsn, "0.8.3p3"},
   {registered, []},
   {applications,
     [kernel,
