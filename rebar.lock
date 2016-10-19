@@ -34,7 +34,7 @@
   0},
  {<<"fifo_dt">>,
   {git,"https://github.com/project-fifo/fifo_dt.git",
-       {ref,"53542f53d95e387777a8fc7e15a3bfbb19f8800c"}},
+       {ref,"7e4d039e500fa03f0e96dfed0356e1faac0976d8"}},
   0},
  {<<"fifo_lager">>,
   {git,"https://github.com/project-fifo/fifo_lager.git",
@@ -42,11 +42,11 @@
   0},
  {<<"fifo_spec">>,
   {git,"https://github.com/project-fifo/fifo_spec.git",
-       {ref,"8997433baf159e3431ea721599ef667129e9c646"}},
+       {ref,"8d2305b8d41241a103f51d74214de0b5ff0abc12"}},
   0},
  {<<"fifo_utils">>,
   {git,"https://github.com/project-fifo/fifo_utils.git",
-       {ref,"a98c6e5aa6e27a0ed7a31902fc939e32ef2d2db8"}},
+       {ref,"59b1fe7a6573418dccc6746051bdda42238b53b2"}},
   0},
  {<<"folsom">>,{pkg,<<"folsom">>,<<"0.8.3">>},1},
  {<<"folsom_ddb">>,{pkg,<<"folsom_ddb">>,<<"0.1.30">>},0},
@@ -96,7 +96,7 @@
  {<<"riak_sysmon">>,{pkg,<<"riak_sysmon">>,<<"2.1.2">>},1},
  {<<"setup">>,{pkg,<<"setup">>,<<"1.7.0">>},2},
  {<<"snappy">>,{pkg,<<"snappy">>,<<"1.1.1">>},2},
- {<<"uuid">>,{pkg,<<"uuid_erl">>,<<"1.5.3">>},1},
+ {<<"uuid">>,{pkg,<<"uuid_erl">>,<<"1.5.4">>},1},
  {<<"yubico">>,
   {git,"https://github.com/project-fifo/erlang-yubico.git",
        {ref,"b83383d2217de3d64c58b2720bcef0010dd715b6"}},
@@ -154,5 +154,5 @@
  {<<"riak_sysmon">>, <<"24F804606D65DE1F020138F5E6E3E17BE4C5A41567D5170306378253E3705BAE">>},
  {<<"setup">>, <<"15DF8E57C6DF9755E22BFB1AEF0C640BD97E9889396FDFB2A85A5536A9043674">>},
  {<<"snappy">>, <<"D63449A58F1358046B7ADAEC166AE8929C2B19881E76C4E13284304FE887C39A">>},
- {<<"uuid">>, <<"5A0A49C3F1576E13B71336B1DAB41B361391DCEEFE59C1AA08C96EED47342B93">>}]}
+ {<<"uuid">>, <<"06240EFF3EAF013CC22274689B0C1FF6345645EE5D47A9E4ED7545EEB7698B23">>}]}
 ].
