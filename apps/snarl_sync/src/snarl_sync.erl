@@ -52,21 +52,32 @@ enabled() ->
 %% @spec start_link() -> {ok, Pid} | ignore | {error, Error}
 %% @end
 %%--------------------------------------------------------------------
+
 start(IP, Port) ->
     snarl_sync_worker_sup:start_child(IP, Port).
 
 start_link(IP, Port) ->
-    gen_server:start_link({local, ?SERVER}, ?MODULE, [IP, Port], []).
+    L = io_lib:format("snarl_sync@~s:~p", [IP, Port]),
+    N = list_to_atom(lists:flatten(L)),
+    gen_server:start_link({local, N}, ?MODULE, [IP, Port], []).
+
+cast_all(Msg) ->
+    case whereis(snarl_sync_worker_sup) of
+        undefined ->
+            [];
+        Sup ->
+            Cs = supervisor:which_children(Sup),
+            [gen_server:cast(P, Msg) || {_, P, _, _} <- Cs]
+    end.
 
 sync_op(Node, VNode, System, Bucket, User, Op, Val) ->
-    gen_server:abcast(?SERVER,
-                      {write, Node, VNode, System, Bucket, User, Op, Val}).
+    cast_all({write, Node, VNode, System, Bucket, User, Op, Val}).
 
 remote_sync_started() ->
-    gen_server:abcast(?SERVER, remote_sync).
+    cast_all(remote_sync).
 
 sync() ->
-    gen_server:abcast(?SERVER, sync).
+    cast_all(sync).
 
 %%%===================================================================
 %%% gen_server callbacks
@@ -133,8 +144,8 @@ handle_cast(remote_sync, State) ->
     lager:warning("[sync] Remote sync started, skipping this sync tick"),
     {noreply, next_tick(State)};
 handle_cast({write, _Node, _VNode, _System, _Bucket, _User, _Op, _Val} = Act,
-            State = #state{socket=undefined}) ->
-    lager:debug("[sync] ~p", [Act]),
+            State = #state{ip = IP, socket = undefined}) ->
+    lager:warning("[sync:~s] Skipping ~p", [IP, Act]),
     {noreply, State};
 
 handle_cast({write, Node, VNode, System, Bucket, ID, Op, Val},
