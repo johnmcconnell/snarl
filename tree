@@ -46,7 +46,7 @@
 │     └─ cf─0.2.1
 ├─ rankmatcher─0.1.5
 ├─ recon─2.3.2
-├─ riak_core─2.2.6
+├─ riak_core─2.2.8
 │  ├─ basho_stats─1.0.3
 │  ├─ blume─0.1.0
 │  ├─ chash─0.1.1
