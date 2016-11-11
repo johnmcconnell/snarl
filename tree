@@ -16,17 +16,17 @@
 │  ├─ lager_graylog─0.1.1
 │  └─ lager_logstash_backend─0.1.1
 ├─ fifo_spec─0.1.30
-├─ fifo_utils─0.1.26
+├─ fifo_utils─0.1.27
 │  └─ uuid─1.5.4
 │     └─ quickrand─1.5.4
 ├─ folsom_ddb─0.1.30
 │  ├─ ddb_client─0.1.30
 │  │  ├─ dproto─0.1.25
-│  │  ├─ mmath─0.2.9
+│  │  ├─ mmath─0.2.13
 │  │  └─ snappy─1.1.1
 │  ├─ dqe_idx─0.1.18
 │  ├─ dqe_idx_ddb─0.1.14
-│  │  └─ ddb_connection─0.1.14
+│  │  └─ ddb_connection─0.1.18
 │  ├─ dqe_idx_pg─0.2.12
 │  │  └─ pgapp─0.0.1
 │  │     └─ epgsql─3.1.1
@@ -46,7 +46,7 @@
 │     └─ cf─0.2.1
 ├─ rankmatcher─0.1.5
 ├─ recon─2.3.2
-├─ riak_core─2.2.6
+├─ riak_core─2.2.8
 │  ├─ basho_stats─1.0.3
 │  ├─ blume─0.1.0
 │  ├─ chash─0.1.1
