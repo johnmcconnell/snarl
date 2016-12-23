@@ -46,7 +46,7 @@
   0},
  {<<"fifo_utils">>,
   {git,"https://github.com/project-fifo/fifo_utils.git",
-       {ref,"aab53bd4eab3886d5744006e529bfecca034df43"}},
+       {ref,"4a8070f9e826d26a4d29f47f2fd406fcff56858e"}},
   0},
  {<<"folsom">>,{pkg,<<"folsom">>,<<"0.8.3">>},1},
  {<<"folsom_ddb">>,{pkg,<<"folsom_ddb">>,<<"0.1.30">>},0},
