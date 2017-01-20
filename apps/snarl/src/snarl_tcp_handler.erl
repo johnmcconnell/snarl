@@ -708,24 +708,22 @@ status() ->
                    {S, L} ->
                        [handoff_msg(length(L)) | server_errors(S)]
                end,
-    {ok, {[], ordsets:from_list(Warnings)}}.
+    {ok, {#{}, ordsets:from_list(Warnings)}}.
 
 
 handoff_msg(Pending) ->
-    jsxd:from_list(
-      [{<<"category">>, <<"snarl">>},
-       {<<"element">>, <<"handoff">>},
-       {<<"type">>, <<"info">>},
-       {<<"message">>, bin_fmt("~b handofs pending.", [Pending])}]).
+    #{category => <<"snarl">>,
+      element => <<"handoff">>,
+      type => <<"info">>,
+      message => bin_fmt("~b handofs pending.", [Pending])}.
 
 server_errors(Servers) ->
     lists:map(fun (Server) ->
-                      jsxd:from_list(
-                        [{<<"category">>, <<"snarl">>},
-                         {<<"element">>, list_to_binary(atom_to_list(Server))},
-                         {<<"type">>, <<"critical">>},
-                         {<<"message">>, bin_fmt("Snarl server ~s down.",
-                                                 [Server])}])
+                      #{category => <<"snarl">>,
+                        element => list_to_binary(atom_to_list(Server)),
+                        type => <<"critical">>,
+                        message => bin_fmt("Snarl server ~s down.",
+                                           [Server])}
               end, Servers).
 
 bin_fmt(F, L) ->
