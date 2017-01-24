@@ -44,7 +44,7 @@
 %%
 %% num_w: The number of successful write replies.
 -record(state, {req_id :: pos_integer(),
-                from :: pid(),
+                from :: pid() | undefined,
                 entity :: string(),
                 op :: atom(),
                 vnode,

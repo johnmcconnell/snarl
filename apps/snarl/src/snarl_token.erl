@@ -53,10 +53,7 @@ api_token(Realm, User, Scope, Comment) ->
                     TokenID = fifo_utils:uuid(),
                     Expiery = infinity,
                     Client = undefined,
-                    Context = [{<<"client">>, Client},
-                               {<<"resource_owner">>, User},
-                               {<<"expiry_time">>, Expiery},
-                               {<<"scope">>, Scope}],
+                    Context = mk_context(Client, User, Expiery, Scope),
                     Type = access,
                     add(Realm,
                         {?ACCESS_TOKEN_TABLE, AccessToken},
@@ -83,10 +80,7 @@ manual_token(Realm, User, Scope, Comment, Token) ->
                     TokenID = fifo_utils:uuid(),
                     Expiery = infinity,
                     Client = undefined,
-                    Context = [{<<"client">>, Client},
-                               {<<"resource_owner">>, User},
-                               {<<"expiry_time">>, Expiery},
-                               {<<"scope">>, Scope}],
+                    Context = mk_context(Client, User, Expiery, Scope),
                     Type = access,
                     add(Realm,
                         {?ACCESS_TOKEN_TABLE, Token},
@@ -117,10 +111,7 @@ ssl_cert_token(Realm, User, Scope, Comment, CSR) ->
                     TokenID = fifo_utils:uuid(),
                     Expiery = Days*24*60*60 + erlang:system_time(seconds),
                     Client = undefined,
-                    Context = [{<<"client">>, Client},
-                               {<<"resource_owner">>, User},
-                               {<<"expiry_time">>, Expiery},
-                               {<<"scope">>, Scope}],
+                    Context = mk_context(Client, User, Expiery, Scope),
                     Type = access,
                     add(Realm,
                         {?ACCESS_TOKEN_TABLE, Token},
@@ -165,3 +156,9 @@ do_write(Realm, Token, Op) ->
 do_write(Realm, Token, Op, Val) ->
     ?FM(Op, snarl_entity_write_fsm, write,
         [{snarl_token_vnode, snarl_token}, {Realm, Token}, Op, Val]).
+
+mk_context(Client, User, Expiery, Scope) ->
+    [{<<"client">>, Client},
+     {<<"resource_owner">>, User},
+     {<<"expiry_time">>, Expiery},
+     {<<"scope">>, Scope}].
