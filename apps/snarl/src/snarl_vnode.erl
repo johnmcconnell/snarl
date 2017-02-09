@@ -19,6 +19,8 @@
          mkid/0,
          mkid/1,
          hash_object/2,
+         handle_overload_command/3,
+         handle_overload_info/2,
          mk_reqid/0]).
 
 -ignore_xref([mkid/0, delete/2]).
@@ -78,6 +80,12 @@ init(Partition, Bucket, Service, VNode, StateMod) ->
              service=Service, bucket=Bucket, state=StateMod, vnode=VNode,
              sync_tree = snarl_sync_tree:get_tree(Service)},
      [FoldWorkerPool]}.
+
+handle_overload_command(_Req, Sender, Idx) ->
+    riak_core_vnode:reply(Sender, {fail, Idx, overload}).
+
+handle_overload_info(_, _Idx) ->
+    ok.
 
 list_keys(Realm, Sender, State = #vstate{db=DB}) ->
     Bucket = mk_pfx(Realm, State),

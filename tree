@@ -5,23 +5,25 @@
 │  └─ lager─3.2.4
 ├─ edown─0.8.1
 ├─ eper─0.94.0
+├─ erlware_commons─1.0.0
+│  └─ cf─0.2.2
 ├─ esel─0.1.2
 ├─ esqlite─0.2.2
-├─ fifo_db─0.2.3
-│  ├─ eleveldb─2.2.19
+├─ fifo_db─0.2.4
+│  ├─ eleveldb─2.2.20
 │  └─ erocksdb─0.4.1
-├─ fifo_dt─0.2.4
+├─ fifo_dt─0.2.5
 │  └─ riak_dt─2.1.1
 ├─ fifo_lager─0.1.4
 │  ├─ lager_graylog─0.1.1
 │  └─ lager_logstash_backend─0.1.1
-├─ fifo_spec─0.1.30
+├─ fifo_spec─0.1.31
 ├─ fifo_utils─0.1.30
 │  └─ uuid─1.5.4
 │     └─ quickrand─1.5.4
 ├─ folsom_ddb─0.1.32
 │  ├─ ddb_client─0.2.0
-│  │  ├─ dproto─0.2.2
+│  │  ├─ dproto─0.2.3
 │  │  ├─ mmath─0.2.14
 │  │  └─ snappy─1.1.1
 │  ├─ dqe_idx─0.2.1
@@ -41,29 +43,28 @@
 ├─ merklet─1.0.1
 ├─ oauth2─0.6.1
 ├─ qdate─0.4.3
-│  ├─ erlang_localtime─1.0.0
-│  └─ erlware_commons─0.20.0
-│     └─ cf─0.2.1
-├─ rankmatcher─0.1.5
+│  └─ erlang_localtime─1.0.0
+├─ rankmatcher─0.1.6
 ├─ recon─2.3.2
-├─ riak_core─2.2.8
+├─ riak_core─3.0.1
 │  ├─ basho_stats─1.0.3
 │  ├─ blume─0.1.0
 │  ├─ chash─0.1.2
 │  ├─ clique─0.3.6
-│  ├─ cuttlefish─2.0.8
+│  ├─ cuttlefish─2.0.11
 │  │  └─ getopt─0.8.2
 │  ├─ exometer_core─1.0.2
 │  │  ├─ parse_trans─2.9.0
 │  │  └─ setup─1.7.0
-│  ├─ goldrush─0.1.8
+│  ├─ goldrush─0.1.9
+│  ├─ jam─1.0.0
 │  ├─ pbkdf2─2.0.0
-│  ├─ poolboy─0.8.1-p3
-│  ├─ riak_ensemble─2.2.0
+│  ├─ poolboy─0.8.2
+│  ├─ riak_ensemble─2.4.0
 │  └─ riak_sysmon─2.1.3
-├─ snarl─0.9.0
+├─ snarl─0.9.1
 ├─ snarl_coverage─0.1.0
 ├─ snarl_dtrace─0.1.0
 ├─ snarl_oauth─0.1.0
 ├─ snarl_sync─0.8.3
-└─ yubico─0.1.4
+└─ yubico─0.1.5

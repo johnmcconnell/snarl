@@ -18,6 +18,8 @@
          encode_handoff_item/2,
          handle_coverage/4,
          handle_exit/3,
+         handle_overload_command/3,
+         handle_overload_info/2,
          handle_info/2
        ]).
 
@@ -251,6 +253,12 @@ revoke_prefix(Preflist, ReqID, {Realm, UUID}, Val) ->
 %%%===================================================================
 init([Part]) ->
     snarl_vnode:init(Part, <<"user">>, ?SERVICE, ?MODULE, ft_user).
+
+handle_overload_command(_Req, Sender, Idx) ->
+    riak_core_vnode:reply(Sender, {fail, Idx, overload}).
+
+handle_overload_info(_, _Idx) ->
+    ok.
 
 %%%===================================================================
 %%% General
