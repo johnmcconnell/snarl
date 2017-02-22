@@ -44,6 +44,8 @@
          handle_handoff_data/2,
          encode_handoff_item/2,
          handle_coverage/4,
+         handle_overload_command/3,
+         handle_overload_info/2,
          handle_exit/3]).
 
 -ignore_xref([
@@ -143,6 +145,12 @@ init([Partition]) ->
                     node = node(),
                     timeout_limit = TimeoutLimit,
                     timeout_cycle = TimeoutCycle})}.
+
+handle_overload_command(_Req, Sender, Idx) ->
+    riak_core_vnode:reply(Sender, {fail, Idx, overload}).
+
+handle_overload_info(_, _Idx) ->
+    ok.
 
 handle_command({repair, {Realm, Token}, _, Obj}, _Sender, State) ->
     lager:warning("[repair:~p/~p] performed ~p~n", [Realm, Token, Obj]),

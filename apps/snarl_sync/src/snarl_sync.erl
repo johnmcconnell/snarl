@@ -99,8 +99,7 @@ init([IP, Port]) ->
     IVal = application:get_env(snarl, sync_interval, ?SYNC_IVAL),
     State = #state{ip=IP, port=Port, timeout=Timeout, interval = IVal},
     timer:send_interval(1000, ping),
-    case gen_tcp:connect(IP, Port, [{send_timeout, State#state.timeout} |
-                                    ?CON_OPTS], Timeout) of
+    case connect(State)  of
         {ok, Socket} ->
             lager:info("[sync] Connected to: ~s:~p.", [IP, Port]),
             {ok, next_tick(State#state{socket=Socket}), 0};
@@ -108,6 +107,9 @@ init([IP, Port]) ->
             lager:error("[sync] Initialization failed: ~p.", [E]),
             {ok, reconnect(next_tick(State)), 0}
     end.
+
+connect(#state{ip=IP, port=Port, timeout = Timeout}) ->
+    gen_tcp:connect(IP, Port, [{send_timeout, Timeout} | ?CON_OPTS], Timeout).
 
 %%--------------------------------------------------------------------
 %% @private
@@ -208,12 +210,10 @@ handle_info(sync, State) ->
     State0 = do_sync(State),
     {noreply, next_tick(State0)};
 
-handle_info(reconnect, State = #state{socket = Old, ip=IP, port=Port,
-                                      timeout = Timeout}) ->
+handle_info(reconnect, State = #state{socket = Old, ip = IP, port = Port}) ->
     maybe_close(Old),
     State1 = State#state{reconnect_timer = undefined},
-    case gen_tcp:connect(IP, Port, [{send_timeout, State#state.timeout} |
-                                    ?CON_OPTS], Timeout) of
+    case connect(State)  of
         {ok, Socket} ->
             {noreply, State1#state{socket = Socket}};
         E ->
@@ -295,7 +295,7 @@ hash(BKey, Obj) ->
     integer_to_binary(erlang:phash2({BKey, Data})).
 
 next_tick(State = #state{interval = IVal}) ->
-    Wait = random:uniform(IVal) + IVal,
+    Wait = rand:uniform(IVal) + IVal,
     T1 = erlang:send_after(Wait, self(), sync),
     State#state{timer = T1}.
 
@@ -305,7 +305,7 @@ cancle_timer(#state{timer = T}) ->
     erlang:cancel_timer(T).
 
 reconnect(State = #state{reconnect_timer = undefined}) ->
-    Wait = random:uniform(2000) + 500,
+    Wait = rand:uniform(2000) + 500,
     lager:warning("[sync] Reconnecting in ~pms", [Wait]),
     T1 = erlang:send_after(Wait, self(), reconnect),
     State#state{reconnect_timer = T1};

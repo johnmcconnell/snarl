@@ -6,14 +6,6 @@
 -ignore_xref([scope/1, scope/2, add_scope/3, delete_scope/2, add_permission/3,
               remove_permission/3, default/2, verify_scope/2]).
 
-
--type scope() :: #{
-             name => binary(),
-             desc => binary(),
-             default => boolean(),
-             permissions => list()
-            }.
-
 -spec scope(binary()) -> [fifo:scope_map()].
 scope(Realm) ->
     case riak_core_metadata:get({<<"oauth">>, Realm}, <<"scope">>) of
@@ -93,7 +85,7 @@ update_scope({Scope, Description, Dflt, Permissions}) ->
 update_scope(S) ->
     S.
 
--spec scopes_without([scope()], binary()) ->
-    [scope()].
-scopes_without(Scopes, Scope) ->
+-spec scopes_without([fifo:scope_map()], binary()) ->
+    [fifo:scope_map()].
+scopes_without(Scopes, Scope) when is_binary(Scope) ->
     [S || S = #{scope := Name} <- Scopes, Name =/= Scope].

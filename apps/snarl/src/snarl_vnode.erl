@@ -19,6 +19,8 @@
          mkid/0,
          mkid/1,
          hash_object/2,
+         handle_overload_command/3,
+         handle_overload_info/2,
          mk_reqid/0]).
 
 -ignore_xref([mkid/0, delete/2]).
@@ -79,17 +81,16 @@ init(Partition, Bucket, Service, VNode, StateMod) ->
              sync_tree = snarl_sync_tree:get_tree(Service)},
      [FoldWorkerPool]}.
 
+handle_overload_command(_Req, Sender, Idx) ->
+    riak_core_vnode:reply(Sender, {fail, Idx, overload}).
+
+handle_overload_info(_, _Idx) ->
+    ok.
+
 list_keys(Realm, Sender, State = #vstate{db=DB}) ->
     Bucket = mk_pfx(Realm, State),
     FoldFn = fun (K, L) ->
-                     L1 = [K|L],
-                     case length(L1) of
-                         ?PARTIAL_SIZE ->
-                             partial(L1, Sender, State),
-                             [];
-                         _ ->
-                             L1
-                     end
+                     maybe_send_partial([K|L], Sender, State)
              end,
     AsyncWork = fun() ->
                         fold_keys(DB, Bucket, FoldFn)
@@ -110,13 +111,7 @@ list_keys(Realm, Getter, Requirements, Sender, State=#vstate{state=SM}) ->
                               Pts ->
                                   [{Pts, Key} | C]
                           end,
-                     case length(C1) of
-                         ?PARTIAL_SIZE ->
-                             partial(C1, Sender, State),
-                             [];
-                         _ ->
-                             C1
-                     end
+                     maybe_send_partial(C1, Sender, State)
              end,
     fold(Prefix, FoldFn, [], Sender, State).
 
@@ -131,13 +126,7 @@ list(Realm, Getter, Requirements, Sender, State=#vstate{state=SM}) ->
                          Pts ->
                              [{Pts, {Key, E1}} | C]
                      end,
-                     case length(C1) of
-                         ?PARTIAL_SIZE ->
-                             partial(C1, Sender, State),
-                             [];
-                         _ ->
-                             C1
-                     end
+                     maybe_send_partial(C1, Sender, State)
              end,
     fold(Prefix, FoldFn, [], Sender, State).
 
@@ -227,14 +216,7 @@ handle_coverage({lookup, Realm, Name}, _KeySpaces, Sender,
 handle_coverage(list, _KeySpaces, Sender, State) ->
     Bucket = mk_bkt(State),
     FoldFn = fun(<<_RS:8/integer, Realm:_RS/binary, K/binary>>, _V, Acc) ->
-                     L1 = [{Realm, K} | Acc],
-                     case length(L1) of
-                         ?PARTIAL_SIZE ->
-                             partial(L1, Sender, State),
-                             [];
-                         _ ->
-                             L1
-                     end
+                     maybe_send_partial([{Realm, K} | Acc], Sender, State)
              end,
     fold(Bucket, FoldFn, [], Sender, State);
 
@@ -484,3 +466,9 @@ do_delete(DB, Bucket) ->
 
 fold_keys(DB, Bucket, FoldFn) ->
     ?FM(fifo_db, fold_keys, [DB, Bucket, FoldFn, []]).
+
+maybe_send_partial(L, Sender, State) when length(L) >= ?PARTIAL_SIZE  ->
+    partial(L, Sender, State),
+    [];
+maybe_send_partial(L, _Sender, _State) ->
+    L.
