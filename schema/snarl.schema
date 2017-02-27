@@ -301,17 +301,17 @@
 
 %% @doc CA Certificat (ca.pem) file
 {mapping, "ssl.ca_cert", "esel.ca_cert",
- [{default, "/data/fifoca/fifo.pem"},
+ [{default, "/data/fifo/ca/fifo.pem"},
   {datatype, file}]}.
 
 %% @doc CA Key (key.pem) file
 {mapping, "ssl.ca_key", "esel.ca_key",
- [{default, "/data/fifoca/fifo.pem"},
+ [{default, "/data/fifo/ca/fifo.pem"},
   {datatype, file}]}.
 
 %% @doc CA Password to unloick key
 {mapping, "ssl.ca_pass", "esel.ca_pass",
- [{default, "secret"},
+ [{default, ""},
   {datatype, string}]}.
 
 
