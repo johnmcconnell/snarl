@@ -311,7 +311,7 @@
 
 %% @doc CA Password to unloick key
 {mapping, "ssl.ca_pass", "esel.ca_pass",
- [{default, ""},
+ [{default, "secret"},
   {datatype, string}]}.
 
 
