@@ -12,7 +12,7 @@
 ├─ fifo_db─0.2.4
 │  ├─ eleveldb─2.2.20
 │  └─ erocksdb─0.4.1
-├─ fifo_dt─0.2.7
+├─ fifo_dt─0.2.8
 │  └─ riak_dt─2.1.1
 ├─ fifo_lager─0.1.4
 │  ├─ lager_graylog─0.1.1
@@ -22,13 +22,13 @@
 │  └─ uuid─1.5.4
 │     └─ quickrand─1.5.4
 ├─ folsom_ddb─0.1.32
-│  ├─ ddb_client─0.2.1
-│  │  ├─ dproto─0.2.4
+│  ├─ ddb_client─0.2.2
+│  │  ├─ dproto─0.2.8
 │  │  ├─ mmath─0.2.15
-│  │  └─ snappy─1.1.1
+│  │  └─ snappyer─1.2.0
 │  ├─ dqe_idx─0.2.1
 │  ├─ dqe_idx_ddb─0.2.4
-│  │  └─ ddb_connection─0.1.21
+│  │  └─ ddb_connection─0.1.22
 │  ├─ dqe_idx_pg─0.3.6
 │  │  └─ pgapp─0.0.2
 │  │     └─ epgsql─3.3.0
@@ -36,7 +36,7 @@
 │     └─ bear─0.8.3
 ├─ jsx─1.4.5
 ├─ jsxd─0.2.4
-├─ libsnarlmatch─0.1.7
+├─ libsnarlmatch─0.1.8
 ├─ mdns_server_lib─0.2.3
 │  ├─ mdns_server─0.2.0
 │  └─ ranch─1.1.0
