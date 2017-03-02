@@ -22,13 +22,13 @@
 │  └─ uuid─1.5.4
 │     └─ quickrand─1.5.4
 ├─ folsom_ddb─0.1.32
-│  ├─ ddb_client─0.2.1
-│  │  ├─ dproto─0.2.4
+│  ├─ ddb_client─0.2.2
+│  │  ├─ dproto─0.2.8
 │  │  ├─ mmath─0.2.15
-│  │  └─ snappy─1.1.1
+│  │  └─ snappyer─1.2.0
 │  ├─ dqe_idx─0.2.1
 │  ├─ dqe_idx_ddb─0.2.4
-│  │  └─ ddb_connection─0.1.21
+│  │  └─ ddb_connection─0.1.22
 │  ├─ dqe_idx_pg─0.3.6
 │  │  └─ pgapp─0.0.2
 │  │     └─ epgsql─3.3.0
