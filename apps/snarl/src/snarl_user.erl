@@ -451,7 +451,7 @@ set_metadata(Realm, User, Attributes) ->
 passwd(Realm, User, Passwd) ->
     H = case application:get_env(snarl, hash_fun) of
             {ok, sha512} ->
-                Salt = crypto:rand_bytes(64),
+                Salt = crypto:strong_rand_bytes(64),
                 Hash = hash(sha512, Salt, Passwd),
                 {Salt, Hash};
             _ ->

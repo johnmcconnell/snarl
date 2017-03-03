@@ -21,6 +21,8 @@
          encode_handoff_item/2,
          handle_coverage/4,
          handle_exit/3,
+         handle_overload_command/3,
+         handle_overload_info/2,
          handle_info/2]).
 
 -export([
@@ -188,6 +190,12 @@ init([Partition]) ->
         sync_tree = snarl_sync_tree:get_tree(snarl_accounting)
        },
      [FoldWorkerPool]}.
+
+handle_overload_command(_Req, Sender, Idx) ->
+    riak_core_vnode:reply(Sender, {fail, Idx, overload}).
+
+handle_overload_info(_, _Idx) ->
+    ok.
 
 %%%===================================================================
 %%% General

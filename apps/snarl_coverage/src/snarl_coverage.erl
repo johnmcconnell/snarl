@@ -20,8 +20,8 @@
                 r = 1 :: pos_integer(),
                 reqid :: integer(),
                 from :: pid(),
-                reqs :: list(),
-                raw :: boolean(),
+                reqs :: list() | undefined,
+                raw :: boolean() | undefined,
                 merge_fn = fun([E | _]) -> E  end :: fun( ([Type]) -> Type),
                 completed = [] :: [binary()]}).
 
@@ -51,7 +51,7 @@ start(VNodeMaster, NodeCheckService, Request) ->
 fold(VNodeMaster, NodeCheckService, Request, FoldFn, Acc0) ->
     ReqID = mk_reqid(),
     snarl_coverage_sup:start_coverage(
-      ?MODULE, {self(), ReqID, something_else},
+      ?MODULE, {raw, ReqID, self()},
       {VNodeMaster, NodeCheckService, Request}),
     wait(ReqID, FoldFn, Acc0).
 
@@ -71,7 +71,7 @@ wait(ReqID, FoldFn, Acc) ->
 init(Req,
      {VNodeMaster, NodeCheckService, {list, Realm, Requirements, Raw}}) ->
     {Request, VNodeSelector, N, PrimaryVNodeCoverage,
-     NodeCheckService, VNodeMaster, Timeout, State1} =
+     NodeCheckService, VNodeMaster, Timeout, Plan, State1} =
         base_init(Req, {VNodeMaster, NodeCheckService,
                         {list, Realm, Requirements, true}}),
     Merge = case Raw of
@@ -82,12 +82,12 @@ init(Req,
             end,
     State2 = State1#state{reqs = Requirements, raw = Raw, merge_fn = Merge},
     {Request, VNodeSelector, N, PrimaryVNodeCoverage,
-     NodeCheckService, VNodeMaster, Timeout, State2};
+     NodeCheckService, VNodeMaster, Timeout, Plan, State2};
 
 init(Req, {VNodeMaster, NodeCheckService, Request}) ->
     base_init(Req, {VNodeMaster, NodeCheckService, Request}).
 
-base_init({From, ReqID, _}, {VNodeMaster, NodeCheckService, Request}) ->
+base_init({_, ReqID, From}, {VNodeMaster, NodeCheckService, Request}) ->
     {ok, N} = application:get_env(snarl, n),
     {ok, R} = application:get_env(snarl, r),
     %% all - full coverage; allup - partial coverage
@@ -97,7 +97,7 @@ base_init({From, ReqID, _}, {VNodeMaster, NodeCheckService, Request}) ->
     Timeout = 5000,
     State = #state{r = R, from = From, reqid = ReqID},
     {Request, VNodeSelector, N, PrimaryVNodeCoverage,
-     NodeCheckService, VNodeMaster, Timeout, State}.
+     NodeCheckService, VNodeMaster, Timeout, riak_core_coverage_plan, State}.
 
 update(Key, State) when is_binary(Key) ->
     update1({Key, Key}, State);

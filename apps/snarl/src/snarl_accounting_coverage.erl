@@ -31,7 +31,7 @@ start(VNodeMaster, NodeCheckService, Request) ->
             ok;
         {ok, ReqID, Result} ->
             {ok, Result}
-       after 60000 ->
+    after 60000 ->
             {error, timeout}
     end.
 
@@ -46,17 +46,17 @@ init({From, ReqID, _}, {VNodeMaster, NodeCheckService, Request}) ->
     %% We timeout after 5s
     Timeout = 60000,
     State = #state{
-               %replies = dict:new(),
+               %%replies = dict:new(),
                r = R,
                from = From, reqid = ReqID},
     {Request, VNodeSelector, NVal, PrimaryVNodeCoverage,
-     NodeCheckService, VNodeMaster, Timeout, State}.
+     NodeCheckService, VNodeMaster, Timeout, riak_core_coverage_plan, State}.
 
 plan(Plan, State) ->
     {ok, State#state{nodes = Plan}}.
 
 process_results(_, State) ->
-     {error, State}.
+    {error, State}.
 
 process_results(_VNode, {partial, Realm, Org, UUIDs},
                 State = #state{replies = Replies}) ->
@@ -65,8 +65,8 @@ process_results(_VNode, {partial, Realm, Org, UUIDs},
                         %%({UUID}, {I, M}) when (I rem 1000) == 0 ->
                         %%    {I+1, inc({Realm, {Org, UUID}}, M)};
                         ({UUID}, {I, M}) ->
-                            {I+1, inc({Realm, {Org, UUID}}, M)}
-                    end, {0, Replies}, UUIDs),
+                           {I+1, inc({Realm, {Org, UUID}}, M)}
+                   end, {0, Replies}, UUIDs),
     {ok, State#state{replies = Replies1}};
 
 process_results(VNode, {done, {_P, _N}}, State = #state{nodes = [VNode]}) ->

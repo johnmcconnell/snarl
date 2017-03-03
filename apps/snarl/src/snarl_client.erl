@@ -267,7 +267,7 @@ set_metadata(Realm, Client, Attributes) ->
 secret(Realm, Client, Secret) ->
     H = case application:get_env(snarl, hash_fun) of
             {ok, sha512} ->
-                Salt = crypto:rand_bytes(64),
+                Salt = crypto:strong_rand_bytes(64),
                 Hash = hash(sha512, Salt, Secret),
                 {Salt, Hash};
             _ ->

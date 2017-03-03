@@ -158,32 +158,31 @@ execute(timeout, SD0=#state{req_id=ReqId,
 waiting({ok, ReqID, IdxNode, Obj},
         SD0=#state{from=From, num_r=NumR0, replies=Replies0,
                    r=R, n = N, timeout=Timeout}) ->
-    NumR = NumR0 + 1,
     Replies = [{IdxNode, Obj}|Replies0],
-    SD = SD0#state{num_r=NumR, replies=Replies},
-    if
-        NumR >= R ->
+    case NumR0 + 1 of
+        NumR when NumR >= R ->
+            SD = SD0#state{num_r=NumR, replies=Replies},
             Reply = merge(Replies),
-            if
+            case NumR of
                 %% If we have all repliesbut do not send yet it's not found
-                NumR =:= N andalso not SD#state.has_send ->
+                N when not SD#state.has_send ->
                     ?DT_READ_FOUND_RETURN(SD0#state.accounting, SD0#state.op),
                     From ! {ReqID, ok, Reply},
                     {next_state, finalize, SD#state{has_send = true}, 0};
                 %% If we have all replies and also send we're good
-                NumR =:= N ->
+                N ->
                     {next_state, finalize, SD, 0};
                 %% If we do not have all replies and not send yet we want
                 %% to keep waiting
-                not SD#state.has_send ->
+                _ when not SD#state.has_send ->
                     {next_state, waiting, SD};
                 %% If we have not all replies but already send the messag
                 %% on we've found a object and now can wait for the rest.
-                true ->
+                _ ->
                     {next_state, wait_for_n, SD, Timeout}
             end;
-        true ->
-            {next_state, waiting, SD}
+        NumR ->
+            {next_state, waiting, SD0#state{num_r=NumR, replies=Replies}}
     end.
 
 wait_for_n({ok, _ReqID, IdxNode, Obj},
