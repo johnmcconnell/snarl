@@ -9,9 +9,9 @@
 │  └─ cf─0.2.2
 ├─ esel─0.1.2
 ├─ esqlite─0.2.2
-├─ fifo_db─0.2.4
+├─ fifo_db─0.2.5
 │  ├─ eleveldb─2.2.20
-│  └─ rocksdb─0.6.3
+│  └─ rocksdb─0.6.4
 ├─ fifo_dt─0.2.9
 │  └─ riak_dt─2.1.1
 ├─ fifo_lager─0.1.4
